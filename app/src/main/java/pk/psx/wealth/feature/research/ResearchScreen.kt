@@ -26,6 +26,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -33,10 +34,18 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import pk.psx.wealth.data.local.WatchlistEntity
 import pk.psx.wealth.domain.ZERO
 import pk.psx.wealth.ui.design.AllocationComparisonBar
+import pk.psx.wealth.ui.design.AllocationChartSlice
+import pk.psx.wealth.ui.design.AllocationDonutChart
 import pk.psx.wealth.ui.design.ChartPoint
+import pk.psx.wealth.ui.design.DailyProfitLossChart
+import pk.psx.wealth.ui.design.DatedLineSeries
+import pk.psx.wealth.ui.design.DatedValue
+import pk.psx.wealth.ui.design.HoldingGainBarChart
 import pk.psx.wealth.ui.design.LabelValue
 import pk.psx.wealth.ui.design.LongTermLineChart
 import pk.psx.wealth.ui.design.MetricCard
+import pk.psx.wealth.ui.design.MultiSeriesLineChart
+import pk.psx.wealth.ui.design.ProfitBarRow
 import pk.psx.wealth.ui.design.YearBarChart
 import pk.psx.wealth.ui.design.percentFraction
 import pk.psx.wealth.ui.design.percentValue
@@ -73,6 +82,7 @@ fun ResearchScreen(
                     state,
                     viewModel::selectIndex,
                     viewModel::refreshBenchmarkHistory,
+                    viewModel::refreshAllBenchmarkHistories,
                 )
                 ResearchSection.DIVIDENDS -> DividendPane(state, onOpenStock)
                 ResearchSection.SCREENER -> ScreenerPane(state.screenerRows, onOpenStock)
@@ -160,11 +170,26 @@ private fun PerformancePane(
     state: ResearchUiState,
     onSelectBenchmark: (String) -> Unit,
     onRefreshBenchmark: () -> Unit,
+    onRefreshAllBenchmarks: () -> Unit,
 ) {
     val result = state.performance
     var range by remember(state.indexCode) { mutableStateOf(PerformanceRange.MAX) }
-    val comparisonPoints = alignBenchmarkHistory(state.wealthHistory, state.benchmarkHistory)
-    val visiblePoints = comparisonPoints.filterRange(range)
+    val lastValuationDate = state.wealthHistory.lastOrNull()?.date
+    val cutoff = range.years?.let { years -> lastValuationDate?.minusYears(years) }
+    fun inRange(date: LocalDate) = cutoff == null || !date.isBefore(cutoff)
+    val benchmarkColors = mapOf(
+        "KMI30" to Color(0xFFD5A521),
+        "KSE100" to Color(0xFF2F6DAE),
+        "KMIALLSHR" to Color(0xFF8B5FBF),
+    )
+    val comparisonSeries = buildList {
+        val portfolioPoints = state.wealthHistory.filter { inRange(it.date) }.map { DatedValue(it.date, it.value) }
+        if (portfolioPoints.isNotEmpty()) add(DatedLineSeries("Portfolio", MaterialTheme.colorScheme.primary, portfolioPoints))
+        state.benchmarkHistories.forEach { (code, points) ->
+            val visible = points.filter { inRange(it.date) }.map { DatedValue(it.date, it.value) }
+            if (visible.isNotEmpty()) add(DatedLineSeries(code.displayIndexName(), benchmarkColors.getValue(code), visible))
+        }
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
@@ -196,9 +221,81 @@ private fun PerformancePane(
                         LabelValue("Unrealized P/L", pkr(result.unrealizedProfit), profitColor(result.unrealizedProfit))
                         LabelValue("Dividends", pkr(result.dividends))
                         LabelValue("Absolute return", percentFraction(result.absoluteReturn))
-                        LabelValue("Money-weighted return (XIRR)", percentFraction(result.xirr))
+                        LabelValue("Time-weighted return (TWR)", percentFraction(result.timeWeightedReturn))
+                        LabelValue("Money-weighted return (annualized XIRR)", percentFraction(result.xirr))
                     }
                 }
+            }
+            item {
+                Text("Periodic TWR and MWR", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("TWR removes the effect of deposits and withdrawals. Periodic MWR is the XIRR result converted to each exact period length.")
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(Modifier.fillMaxWidth()) {
+                            Text("Period", Modifier.weight(1.05f), fontWeight = FontWeight.Bold)
+                            Text("TWR", Modifier.weight(.85f), fontWeight = FontWeight.Bold)
+                            Text("MWR", Modifier.weight(.85f), fontWeight = FontWeight.Bold)
+                            Text("P/L", Modifier.weight(1.15f), fontWeight = FontWeight.Bold)
+                        }
+                        state.periodicReturns.forEach { period ->
+                            Row(Modifier.fillMaxWidth()) {
+                                Column(Modifier.weight(1.05f)) {
+                                    Text(period.label, fontWeight = FontWeight.Medium)
+                                    Text("${period.startDate} – ${period.endDate}", style = MaterialTheme.typography.labelSmall)
+                                }
+                                Text(percentFraction(period.timeWeightedReturn), Modifier.weight(.85f))
+                                Text(percentFraction(period.moneyWeightedReturn), Modifier.weight(.85f))
+                                Text(
+                                    pkr(period.profitLoss),
+                                    Modifier.weight(1.15f),
+                                    color = profitColor(period.profitLoss),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            item {
+                Text("Daily and cumulative P/L", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("Daily bars are adjusted for external cash flows and use only complete local valuation dates; missing dates are not invented.")
+                DailyProfitLossChart(state.profitLossHistory)
+                Text("Cumulative P/L", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                LongTermLineChart(state.profitLossHistory.map { ChartPoint(it.date, it.cumulativeProfitLoss) })
+            }
+            item {
+                Text("Portfolio allocation", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("Stock percentages include cash so the chart reconciles to current portfolio value.")
+                AllocationDonutChart(state.portfolioAllocations.map {
+                    AllocationChartSlice(it.label, it.value, it.weight, it.profit)
+                })
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        state.portfolioAllocations.forEach { row ->
+                            LabelValue("${row.label} · ${percentFraction(row.weight)}", pkr(row.value))
+                            row.profit?.let { LabelValue("  Total P/L", pkr(it), profitColor(it)) }
+                        }
+                    }
+                }
+            }
+            item {
+                Text("Sector allocation", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("Sector weights use invested stock value; refresh company details to replace Unknown classifications.")
+                AllocationDonutChart(state.sectorAllocations.map {
+                    AllocationChartSlice(it.label, it.value, it.weight, it.profit)
+                })
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        state.sectorAllocations.forEach { row ->
+                            LabelValue("${row.label} · ${percentFraction(row.weight)}", pkr(row.value))
+                            row.profit?.let { LabelValue("  Sector P/L", pkr(it), profitColor(it)) }
+                        }
+                    }
+                }
+            }
+            item {
+                Text("Gain by holding", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("Total P/L combines unrealized P/L, realized P/L and dividends for each current holding.")
+                HoldingGainBarChart(state.holdingGains.map { ProfitBarRow(it.symbol, it.profit, it.returnFraction) })
             }
             item {
                 Text("Wealth history", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -210,44 +307,53 @@ private fun PerformancePane(
                 }
             }
             item {
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Portfolio vs ${state.indexCode}", fontWeight = FontWeight.Bold)
-                        Text(state.benchmarkMessage)
-                        OutlinedButton(
-                            onClick = onRefreshBenchmark,
-                            enabled = !state.benchmarkRefreshing,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) { Text(if (state.benchmarkRefreshing) "Downloading history…" else "Refresh ${state.indexCode} history") }
-                        state.benchmark?.let { benchmark ->
-                            LabelValue("Benchmark value", pkr(benchmark.terminalValue))
-                            LabelValue("Benchmark profit", pkr(benchmark.totalProfit), profitColor(benchmark.totalProfit))
-                            LabelValue("Benchmark XIRR", percentFraction(benchmark.xirr))
-                            LabelValue(
-                                "Portfolio value difference",
-                                pkr(benchmark.portfolioValueDifference),
-                                profitColor(benchmark.portfolioValueDifference),
-                            )
-                            LabelValue("Index close used through", benchmark.terminalDate.toString())
+                Text("Portfolio vs all PSX indexes", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("Every benchmark receives the same dated deposits and withdrawals, making the values directly comparable.")
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PerformanceRange.entries.forEach { value ->
+                        FilterChip(range == value, { range = value }, label = { Text(value.label()) })
+                    }
+                }
+                Button(
+                    onClick = onRefreshAllBenchmarks,
+                    enabled = !state.benchmarkRefreshing,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(if (state.benchmarkRefreshing) "Downloading benchmark history…" else "Refresh all three benchmark histories") }
+                Text(state.benchmarkMessage, style = MaterialTheme.typography.bodySmall)
+            }
+            if (comparisonSeries.size > 1) {
+                item { MultiSeriesLineChart(comparisonSeries) }
+            }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    state.benchmarkSummaries.forEach { benchmark ->
+                        Card(Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Text(benchmark.indexCode.displayIndexName(), fontWeight = FontWeight.Bold)
+                                LabelValue("Contribution-matched value", pkr(benchmark.terminalValue))
+                                LabelValue("Gain", pkr(benchmark.totalProfit), profitColor(benchmark.totalProfit))
+                                LabelValue("Annualized MWR (XIRR)", percentFraction(benchmark.xirr))
+                                LabelValue(
+                                    "Portfolio ahead / behind",
+                                    pkr(benchmark.portfolioValueDifference),
+                                    profitColor(benchmark.portfolioValueDifference),
+                                )
+                                LabelValue("Index close used through", benchmark.terminalDate.toString())
+                            }
                         }
                     }
                 }
             }
-            if (visiblePoints.isNotEmpty() && state.benchmark != null) {
-                item {
-                    Text("Contribution-matched comparison", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text("Both lines receive the same dated deposits and withdrawals. This is not a misleading simple index return.")
-                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        PerformanceRange.entries.forEach { value ->
-                            FilterChip(range == value, { range = value }, label = { Text(value.label()) })
-                        }
-                    }
-                    LongTermLineChart(visiblePoints)
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Portfolio", color = MaterialTheme.colorScheme.primary)
-                        Text(state.indexCode, color = MaterialTheme.colorScheme.tertiary)
-                    }
-                }
+            item {
+                OutlinedButton(
+                    onClick = onRefreshBenchmark,
+                    enabled = !state.benchmarkRefreshing,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Refresh selected ${state.indexCode.displayIndexName()} only") }
+                Text(
+                    "Returns are based on the local ledger and cached closing prices. They are decision-support estimates, not broker or tax statements.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         }
     }
@@ -464,6 +570,12 @@ private fun WatchlistCard(
 }
 
 private fun ResearchSection.label() = name.lowercase().replaceFirstChar { it.titlecase() }
+private fun String.displayIndexName() = when (this) {
+    "KMI30" -> "KMI 30"
+    "KSE100" -> "KSE 100"
+    "KMIALLSHR" -> "KMI All Share"
+    else -> this
+}
 private fun Membership.label() = when (this) {
     Membership.BOTH -> "Owned + index"
     Membership.OWNED_ONLY -> "Owned only"

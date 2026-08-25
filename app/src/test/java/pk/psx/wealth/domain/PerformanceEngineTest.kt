@@ -59,6 +59,53 @@ class PerformanceEngineTest {
     }
 
     @Test
+    fun `history TWR removes deposits before chain linking`() {
+        val result = requireNotNull(engine.timeWeightedReturnFromHistory(listOf(
+            WealthPoint(LocalDate.of(2026, 1, 1), BigDecimal("1000"), BigDecimal("1000")),
+            WealthPoint(LocalDate.of(2026, 2, 1), BigDecimal("1600"), BigDecimal("1500")),
+            WealthPoint(LocalDate.of(2026, 3, 1), BigDecimal("1760"), BigDecimal("1500")),
+        )))
+
+        assertEquals(0, BigDecimal("0.21").compareTo(result.stripTrailingZeros()))
+    }
+
+    @Test
+    fun `profit history reports contribution adjusted daily and cumulative pnl`() {
+        val result = engine.profitLossHistory(listOf(
+            WealthPoint(LocalDate.of(2026, 1, 1), BigDecimal("1000"), BigDecimal("1000")),
+            WealthPoint(LocalDate.of(2026, 1, 2), BigDecimal("1110"), BigDecimal("1100")),
+            WealthPoint(LocalDate.of(2026, 1, 3), BigDecimal("1090"), BigDecimal("1100")),
+        ))
+
+        assertNull(result.first().dailyProfitLoss)
+        assertEquals(0, BigDecimal("10").compareTo(requireNotNull(result[1].dailyProfitLoss)))
+        assertEquals(0, BigDecimal("-20").compareTo(requireNotNull(result[2].dailyProfitLoss)))
+        assertEquals(0, BigDecimal("-10").compareTo(result.last().cumulativeProfitLoss))
+    }
+
+    @Test
+    fun `periodic returns provide TWR MWR and contribution adjusted profit`() {
+        val history = listOf(
+            WealthPoint(LocalDate.of(2025, 1, 1), BigDecimal("1000"), BigDecimal("1000")),
+            WealthPoint(LocalDate.of(2025, 7, 1), BigDecimal("1600"), BigDecimal("1500")),
+            WealthPoint(LocalDate.of(2026, 1, 1), BigDecimal("1760"), BigDecimal("1500")),
+        )
+        val transactions = listOf(
+            transaction(TransactionType.CASH_DEPOSIT, LocalDate.of(2025, 1, 1), cash = "1000"),
+            transaction(TransactionType.CASH_DEPOSIT, LocalDate.of(2025, 7, 1), cash = "500"),
+        )
+
+        val maximum = engine.periodicReturns(history, transactions, LocalDate.of(2026, 1, 1))
+            .first { it.label == "MAX" }
+
+        assertEquals(0, BigDecimal("0.21").compareTo(requireNotNull(maximum.timeWeightedReturn).stripTrailingZeros()))
+        assertEquals(0, BigDecimal("260").compareTo(requireNotNull(maximum.profitLoss)))
+        val moneyWeighted = requireNotNull(maximum.moneyWeightedReturn)
+        assertTrue(moneyWeighted > BigDecimal("0.20"))
+        assertTrue(moneyWeighted < BigDecimal("0.22"))
+    }
+
+    @Test
     fun `benchmark simulation invests each dated external flow`() {
         val transactions = listOf(
             transaction(TransactionType.CASH_DEPOSIT, LocalDate.of(2026, 1, 1), cash = "1000"),

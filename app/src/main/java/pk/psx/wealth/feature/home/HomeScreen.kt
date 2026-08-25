@@ -71,7 +71,8 @@ fun HomeScreen(
                     "Total profit",
                     pkr(snapshot.totalProfit),
                     Modifier.weight(1f),
-                    if (!snapshot.hasCompletePrices) "Waiting for all prices" else null,
+                    supporting = if (!snapshot.hasCompletePrices) "Waiting for all prices" else null,
+                    valueColor = profitColor(snapshot.totalProfit),
                 )
             }
         }

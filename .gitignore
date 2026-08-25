@@ -4,4 +4,6 @@ local.properties
 /.idea/
 **/build/
 .DS_Store
-
+*.jks
+*.keystore
+keystore.properties

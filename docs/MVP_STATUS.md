@@ -14,13 +14,18 @@ The developer-plan MVP checklist is implemented:
 - [x] Add SIP cash and calculate cash-only or explicit full rebalance plans.
 - [x] Preview and save plans without changing the ledger.
 - [x] Convert only confirmed actual executions into atomic ledger transactions.
-- [x] Show wealth decomposition, XIRR, dividends and long-term local charts.
+- [x] Show current value, wealth decomposition, overall/periodic TWR and MWR,
+  contribution-adjusted daily/cumulative P/L, dividends and long-term local charts.
+- [x] Show exact stock and sector allocation rows with doughnut charts and
+  positive/negative gain bars for current holdings.
 - [x] Download index-level history on demand and simulate contribution-matched
   portfolio-versus-benchmark value, XIRR and chart periods.
 - [x] Operate from Room/DataStore caches when offline and show provenance/freshness.
 - [x] Export an essential or full versioned backup through Android storage.
 - [x] Validate, preview and transactionally restore a backup.
 - [x] Run read-only local data-health checks with actionable diagnostics.
+- [x] Provide a branded adaptive launcher icon and verified build/install/release
+  documentation for local APK distribution.
 
 The plan's explicitly later or optional work—PDF reports, automatic corporate-action
 feeds, richer index-level benchmark ingestion and advanced sector datasets—remains
