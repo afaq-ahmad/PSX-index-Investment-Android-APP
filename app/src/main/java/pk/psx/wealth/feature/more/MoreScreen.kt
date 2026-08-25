@@ -54,6 +54,7 @@ import pk.psx.wealth.feature.app.AppUiState
 import pk.psx.wealth.feature.security.SecurityViewModel
 import pk.psx.wealth.feature.security.deviceAuthenticationAvailable
 import pk.psx.wealth.feature.security.requestDeviceAuthentication
+import pk.psx.wealth.domain.QuoteProviderPreference
 import pk.psx.wealth.ui.design.LabelValue
 import java.io.ByteArrayOutputStream
 import java.time.Instant
@@ -206,7 +207,53 @@ private fun SettingsPane(
             if (it == RebalanceModePreference.CASH_ONLY) "Cash only" else "Full"
         }
 
-        SettingHeader("Data")
+        SettingHeader("Market data sources")
+        SwitchRow(
+            "Online market data",
+            "Turn off to keep the app completely offline. Manual prices and all cached data still work.",
+            state.settings.remoteMarketDataEnabled,
+            viewModel::setRemoteMarketData,
+        )
+        SwitchRow(
+            "PSX Data Portal",
+            "Primary source for index members, quotes, company snapshots and price history.",
+            state.settings.psxProviderEnabled,
+            viewModel::setPsxProvider,
+            enabled = state.settings.remoteMarketDataEnabled,
+        )
+        SwitchRow(
+            "SCS Trade quote fallback",
+            "Secondary quote/company source. It is tried only in the selected order and never polled continuously.",
+            state.settings.scsQuoteFallbackEnabled,
+            viewModel::setScsFallback,
+            enabled = state.settings.remoteMarketDataEnabled,
+        )
+        ChoiceRow(
+            "Quote provider order",
+            QuoteProviderPreference.entries,
+            state.settings.quoteProviderPreference,
+            viewModel::setQuoteProviderPreference,
+            enabled = state.settings.remoteMarketDataEnabled &&
+                state.settings.psxProviderEnabled && state.settings.scsQuoteFallbackEnabled,
+        ) { if (it == QuoteProviderPreference.PSX_FIRST) "PSX then SCS" else "SCS then PSX" }
+        Text(
+            "A failed provider never replaces a valid cached quote. Each attempt and successful source is visible in Diagnostics.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+
+        SettingHeader("Refresh scope")
+        SwitchRow("Held-stock quotes", "Refresh symbols present in the transaction ledger.", state.settings.refreshPortfolioQuotes,
+            viewModel::setRefreshPortfolioQuotes, enabled = state.settings.remoteMarketDataEnabled)
+        SwitchRow("Watchlist quotes", "Include offline watchlist symbols in Refresh all.", state.settings.refreshWatchlistQuotes,
+            viewModel::setRefreshWatchlistQuotes, enabled = state.settings.remoteMarketDataEnabled)
+        SwitchRow("KMI-30", "Refresh and preserve dated KMI-30 snapshots.", state.settings.refreshKmi30,
+            viewModel::setRefreshKmi30, enabled = state.settings.remoteMarketDataEnabled && state.settings.psxProviderEnabled)
+        SwitchRow("KSE-100", "Refresh and preserve dated KSE-100 snapshots.", state.settings.refreshKse100,
+            viewModel::setRefreshKse100, enabled = state.settings.remoteMarketDataEnabled && state.settings.psxProviderEnabled)
+        SwitchRow("PSX-KMI All Share", "Refresh and preserve dated KMI-All-Share snapshots.", state.settings.refreshKmiAllShare,
+            viewModel::setRefreshKmiAllShare, enabled = state.settings.remoteMarketDataEnabled && state.settings.psxProviderEnabled)
+
+        SettingHeader("Refresh schedule")
         SwitchRow("Refresh on app open", "Off by default; uses cached data while refreshing.", state.settings.refreshOnOpen, viewModel::setRefreshOnOpen)
         SwitchRow("Daily background refresh", "At most once daily and network constrained.", state.settings.dailyRefresh, viewModel::setDailyRefresh)
         SwitchRow("Wi-Fi only", "Applies to optional background refresh.", state.settings.wifiOnly, viewModel::setWifiOnly)
@@ -308,10 +355,19 @@ private fun SwitchRow(label: String, supporting: String, checked: Boolean, onCha
 }
 
 @Composable
-private fun <T> ChoiceRow(label: String, values: List<T>, selected: T, onSelect: (T) -> Unit, text: (T) -> String) {
+private fun <T> ChoiceRow(
+    label: String,
+    values: List<T>,
+    selected: T,
+    onSelect: (T) -> Unit,
+    enabled: Boolean = true,
+    text: (T) -> String,
+) {
     Text(label, style = MaterialTheme.typography.labelLarge)
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        values.forEach { value -> FilterChip(selected == value, { onSelect(value) }, label = { Text(text(value)) }) }
+        values.forEach { value ->
+            FilterChip(selected == value, { onSelect(value) }, enabled = enabled, label = { Text(text(value)) })
+        }
     }
 }
 

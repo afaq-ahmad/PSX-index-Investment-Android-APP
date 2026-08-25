@@ -46,7 +46,10 @@ class AppViewModel @Inject constructor(
         viewModelScope.launch {
             combine(portfolios.observePortfolios(), settings.settings) { available, preferences -> available to preferences }
                 .collect { (available, preferences) ->
-                    refreshScheduler.configureDaily(preferences.dailyRefresh, preferences.wifiOnly)
+                    refreshScheduler.configureDaily(
+                        preferences.dailyRefresh && preferences.remoteMarketDataEnabled,
+                        preferences.wifiOnly,
+                    )
                     val selected = session.selectedPortfolioId.value
                     if (selected == null || available.none { it.id == selected }) {
                         session.select(available.firstOrNull { it.id == preferences.defaultPortfolioId }?.id ?: available.firstOrNull()?.id)

@@ -6,7 +6,9 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import pk.psx.wealth.domain.DailyPrice
 import pk.psx.wealth.domain.IndexConstituent
+import pk.psx.wealth.domain.MarketDataCapability
 import pk.psx.wealth.domain.MarketDataProvider
+import pk.psx.wealth.domain.MarketProviderIds
 import pk.psx.wealth.domain.MarketQuote
 import pk.psx.wealth.domain.ProviderResult
 import pk.psx.wealth.domain.StockSnapshot
@@ -25,7 +27,9 @@ class PsxMarketDataProvider @Inject constructor(
     private val symbols: SymbolNormalizer,
     private val clock: Clock,
 ) : MarketDataProvider {
-    override val providerId: String = "01-psx-direct"
+    override val providerId: String = MarketProviderIds.PSX
+    override val displayName: String = "PSX Data Portal"
+    override val capabilities: Set<MarketDataCapability> = MarketDataCapability.entries.toSet()
     private val baseUrl = "https://dps.psx.com.pk"
 
     override suspend fun fetchQuote(symbol: String): ProviderResult<MarketQuote> = result {

@@ -3,6 +3,7 @@ package pk.psx.wealth.data.repository
 import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import pk.psx.wealth.data.local.DailyPriceEntity
@@ -18,9 +19,12 @@ import pk.psx.wealth.data.local.QuoteDao
 import pk.psx.wealth.data.local.SecurityDao
 import pk.psx.wealth.data.local.SecurityEntity
 import pk.psx.wealth.data.local.toDomain
+import pk.psx.wealth.data.preferences.AppSettingsRepository
+import pk.psx.wealth.data.preferences.marketProviderConfiguration
 import pk.psx.wealth.data.remote.psx.IndexSnapshotValidator
 import pk.psx.wealth.data.remote.psx.SymbolNormalizer
 import pk.psx.wealth.domain.DailyPrice
+import pk.psx.wealth.domain.MarketDataCapability
 import pk.psx.wealth.domain.MarketDataProvider
 import pk.psx.wealth.domain.MarketDataProviderRegistry
 import pk.psx.wealth.domain.MarketQuote
@@ -43,6 +47,7 @@ class RoomMarketRepository @Inject constructor(
     private val providers: MarketDataProviderRegistry,
     private val validator: IndexSnapshotValidator,
     private val symbols: SymbolNormalizer,
+    private val settingsRepository: AppSettingsRepository,
     private val clock: Clock,
 ) : MarketRepository {
     override fun observeQuote(symbol: String): Flow<MarketQuote?> =
@@ -77,8 +82,8 @@ class RoomMarketRepository @Inject constructor(
     override suspend fun refreshIndex(code: String): RefreshItemResult {
         val normalized = code.trim().uppercase()
         val capability = "INDEX:$normalized"
-        return when (val fetched = fetch { it.fetchIndexConstituents(normalized) }) {
-            is ProviderResult.Success -> runCatching {
+        return when (val fetched = fetch(capability, MarketDataCapability.INDEX_CONSTITUENTS) { it.fetchIndexConstituents(normalized) }) {
+            is ProviderFetch.Success -> runCatching {
                 validator.validate(normalized, fetched.value)
                 val now = clock.millis()
                 db.withTransaction {
@@ -116,53 +121,53 @@ class RoomMarketRepository @Inject constructor(
                             close = quote.price, volume = quote.volume, source = quote.source, retrievedAt = now)
                     })
                 }
-                recordSuccess("01-psx-direct", capability, fetched.value.size)
-                RefreshItemResult(normalized, true, "Updated ${fetched.value.size} constituents", fetched.value.size)
-            }.getOrElse { failure(capability, normalized, it) }
-            is ProviderResult.Failure -> failure(capability, normalized, fetched.cause ?: IllegalStateException(fetched.message))
-            is ProviderResult.Unsupported -> failure(capability, normalized, IllegalStateException(fetched.capability))
+                recordSuccess(fetched.provider.providerId, capability, fetched.value.size)
+                RefreshItemResult(normalized, true,
+                    "Updated ${fetched.value.size} constituents from ${fetched.provider.displayName}", fetched.value.size)
+            }.getOrElse { failure(fetched.provider.providerId, capability, normalized, it) }
+            is ProviderFetch.Failure -> RefreshItemResult(normalized, false, "${fetched.message}. Cached data is unchanged.")
         }
     }
 
     override suspend fun refreshQuote(symbol: String): RefreshItemResult {
         val normalized = symbols.normalize(symbol)
         val capability = "QUOTE:$normalized"
-        return when (val fetched = fetch { it.fetchQuote(normalized) }) {
-            is ProviderResult.Success -> runCatching {
+        return when (val fetched = fetch(capability, MarketDataCapability.QUOTE) { it.fetchQuote(normalized) }) {
+            is ProviderFetch.Success -> runCatching {
                 saveQuote(fetched.value)
-                recordSuccess("01-psx-direct", capability, 1)
-                RefreshItemResult(normalized, true, "Quote updated", 1)
-            }.getOrElse { failure(capability, normalized, it) }
-            is ProviderResult.Failure -> failure(capability, normalized, fetched.cause ?: IllegalStateException(fetched.message))
-            is ProviderResult.Unsupported -> failure(capability, normalized, IllegalStateException(fetched.capability))
+                recordSuccess(fetched.provider.providerId, capability, 1)
+                RefreshItemResult(normalized, true, "Quote updated from ${fetched.provider.displayName}", 1)
+            }.getOrElse { failure(fetched.provider.providerId, capability, normalized, it) }
+            is ProviderFetch.Failure -> RefreshItemResult(normalized, false, "${fetched.message}. Cached data is unchanged.")
         }
     }
 
     override suspend fun refreshHistory(symbol: String, from: LocalDate, to: LocalDate): RefreshItemResult {
         val normalized = symbols.normalize(symbol)
         val capability = "HISTORY:$normalized"
-        return when (val fetched = fetch { it.fetchHistoricalPrices(normalized, from, to) }) {
-            is ProviderResult.Success -> runCatching {
+        return when (val fetched = fetch(capability, MarketDataCapability.HISTORY) { it.fetchHistoricalPrices(normalized, from, to) }) {
+            is ProviderFetch.Success -> runCatching {
                 require(fetched.value.isNotEmpty()) { "History response contained no valid prices" }
                 val securityId = ensureSecurity(normalized, normalized)
                 priceDao.upsertAll(fetched.value.map { it.toEntity(securityId) })
-                recordSuccess("01-psx-direct", capability, fetched.value.size)
-                RefreshItemResult(normalized, true, "Updated ${fetched.value.size} daily prices", fetched.value.size)
-            }.getOrElse { failure(capability, normalized, it) }
-            is ProviderResult.Failure -> failure(capability, normalized, fetched.cause ?: IllegalStateException(fetched.message))
-            is ProviderResult.Unsupported -> failure(capability, normalized, IllegalStateException(fetched.capability))
+                recordSuccess(fetched.provider.providerId, capability, fetched.value.size)
+                RefreshItemResult(normalized, true,
+                    "Updated ${fetched.value.size} daily prices from ${fetched.provider.displayName}", fetched.value.size)
+            }.getOrElse { failure(fetched.provider.providerId, capability, normalized, it) }
+            is ProviderFetch.Failure -> RefreshItemResult(normalized, false, "${fetched.message}. Cached data is unchanged.")
         }
     }
 
     override suspend fun refreshStockSnapshot(symbol: String): Result<StockSnapshot> {
         val normalized = symbols.normalize(symbol)
-        return when (val fetched = fetch { it.fetchStockSnapshot(normalized) }) {
-            is ProviderResult.Success -> {
+        val capability = "SNAPSHOT:$normalized"
+        return when (val fetched = fetch(capability, MarketDataCapability.STOCK_SNAPSHOT) { it.fetchStockSnapshot(normalized) }) {
+            is ProviderFetch.Success -> runCatching {
                 fetched.value.quote?.let { saveQuote(it) }
-                Result.success(fetched.value)
-            }
-            is ProviderResult.Failure -> Result.failure(fetched.cause ?: IllegalStateException(fetched.message))
-            is ProviderResult.Unsupported -> Result.failure(UnsupportedOperationException(fetched.capability))
+                recordSuccess(fetched.provider.providerId, capability, 1)
+                fetched.value
+            }.onFailure { recordFailure(fetched.provider.providerId, capability, it) }
+            is ProviderFetch.Failure -> Result.failure(IllegalStateException(fetched.message))
         }
     }
 
@@ -198,16 +203,33 @@ class RoomMarketRepository @Inject constructor(
             lastMetadataUpdate = clock.millis()))
     }
 
-    private suspend fun <T> fetch(call: suspend (MarketDataProvider) -> ProviderResult<T>): ProviderResult<T> {
-        var lastFailure: ProviderResult.Failure? = null
-        for (provider in providers.ordered) {
+    private suspend fun <T> fetch(
+        capabilityName: String,
+        capability: MarketDataCapability,
+        call: suspend (MarketDataProvider) -> ProviderResult<T>,
+    ): ProviderFetch<T> {
+        val configuration = settingsRepository.settings.first().marketProviderConfiguration()
+        val candidates = providers.candidates(capability, configuration)
+        if (candidates.isEmpty()) {
+            return ProviderFetch.Failure("No enabled provider supports ${capability.name.lowercase().replace('_', ' ')}")
+        }
+        val failures = mutableListOf<String>()
+        for (provider in candidates) {
             when (val result = call(provider)) {
-                is ProviderResult.Success -> return result
-                is ProviderResult.Failure -> lastFailure = result
-                is ProviderResult.Unsupported -> Unit
+                is ProviderResult.Success -> return ProviderFetch.Success(provider, result.value)
+                is ProviderResult.Failure -> {
+                    val error = result.cause ?: IllegalStateException(result.message)
+                    recordFailure(provider.providerId, capabilityName, error)
+                    failures += "${provider.displayName}: ${sanitized(error)}"
+                }
+                is ProviderResult.Unsupported -> {
+                    val error = UnsupportedOperationException(result.capability)
+                    recordFailure(provider.providerId, capabilityName, error)
+                    failures += "${provider.displayName}: unsupported"
+                }
             }
         }
-        return lastFailure ?: ProviderResult.Failure("No provider supports this request")
+        return ProviderFetch.Failure("All enabled providers failed (${failures.joinToString("; ")})")
     }
 
     private suspend fun recordSuccess(provider: String, capability: String, records: Int) {
@@ -215,19 +237,31 @@ class RoomMarketRepository @Inject constructor(
         diagnosticsDao.upsert(ProviderStatusEntity(provider.take(120), capability, now, now, null, records))
     }
 
-    private suspend fun failure(capability: String, item: String, error: Throwable): RefreshItemResult {
-        val message = (error.message ?: "Refresh failed").take(500)
-        val previous = diagnosticsDao.get("01-psx-direct", capability)
+    private suspend fun recordFailure(providerId: String, capability: String, error: Throwable) {
+        val message = sanitized(error)
+        val previous = diagnosticsDao.get(providerId, capability)
         diagnosticsDao.upsert(ProviderStatusEntity(
-            providerId = "01-psx-direct",
+            providerId = providerId.take(120),
             capability = capability,
             lastAttemptAt = clock.millis(),
             lastSuccessAt = previous?.lastSuccessAt,
             lastError = message,
             cachedRecordCount = previous?.cachedRecordCount ?: 0,
         ))
+    }
+
+    private suspend fun failure(providerId: String, capability: String, item: String, error: Throwable): RefreshItemResult {
+        recordFailure(providerId, capability, error)
+        val message = sanitized(error)
         return RefreshItemResult(item, false, "$message. Cached data is unchanged.")
     }
+
+    private fun sanitized(error: Throwable): String = (error.message ?: "Refresh failed").take(500)
+}
+
+private sealed interface ProviderFetch<out T> {
+    data class Success<T>(val provider: MarketDataProvider, val value: T) : ProviderFetch<T>
+    data class Failure(val message: String) : ProviderFetch<Nothing>
 }
 
 private fun DailyPrice.toEntity(securityId: Long?) = DailyPriceEntity(
