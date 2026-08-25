@@ -18,6 +18,7 @@ interface PortfolioRepository {
     suspend fun updatePortfolio(portfolio: PortfolioEntity)
     suspend fun archivePortfolio(id: Long)
     suspend fun saveTransaction(transaction: PortfolioTransaction, allowNegativeCash: Boolean = false): Long
+    suspend fun getTransaction(id: Long): PortfolioTransaction?
     suspend fun deleteTransaction(id: Long)
     suspend fun upsertSecurity(symbol: String, companyName: String = symbol, sector: String? = null): Long
     suspend fun saveManualQuote(symbol: String, price: BigDecimal, priceDate: LocalDate): MarketQuote

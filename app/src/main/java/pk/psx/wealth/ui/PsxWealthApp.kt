@@ -1,53 +1,192 @@
 package pk.psx.wealth.ui
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Balance
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import java.text.NumberFormat
-import java.util.Locale
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import pk.psx.wealth.feature.app.AppViewModel
+import pk.psx.wealth.feature.home.HomeScreen
+import pk.psx.wealth.feature.portfolio.ManualPriceScreen
+import pk.psx.wealth.feature.portfolio.PortfolioScreen
+import pk.psx.wealth.feature.portfolio.TransactionEditorScreen
+import pk.psx.wealth.feature.rebalance.ExecutePlanScreen
+import pk.psx.wealth.feature.rebalance.RebalanceScreen
+import pk.psx.wealth.feature.rebalance.TargetScreen
+import pk.psx.wealth.ui.design.EmptyState
 
-private enum class Destination(val label: String, val icon: ImageVector) {
-    Home("Home", Icons.Default.Home), Portfolio("Portfolio", Icons.Default.PieChart), Research("Research", Icons.Default.Search), Rebalance("Rebalance", Icons.Default.Balance), More("More", Icons.Default.MoreHoriz)
+object Routes {
+    const val HOME = "home"
+    const val PORTFOLIO = "portfolio"
+    const val RESEARCH = "research"
+    const val REBALANCE = "rebalance"
+    const val MORE = "more"
+    const val TRANSACTION = "transaction?type={type}&id={id}"
+    const val MANUAL_PRICE = "manual-price"
+    const val TARGETS = "targets"
+    const val EXECUTE_PLAN = "execute/{planId}"
+
+    fun transaction(type: String, id: Long = 0) = "transaction?type=$type&id=$id"
+    fun execute(planId: Long) = "execute/$planId"
 }
+
+private data class BottomDestination(val route: String, val label: String, val icon: ImageVector)
+private val bottomDestinations = listOf(
+    BottomDestination(Routes.HOME, "Home", Icons.Default.Home),
+    BottomDestination(Routes.PORTFOLIO, "Portfolio", Icons.Default.AccountBalanceWallet),
+    BottomDestination(Routes.RESEARCH, "Research", Icons.Default.Search),
+    BottomDestination(Routes.REBALANCE, "Rebalance", Icons.Default.Balance),
+    BottomDestination(Routes.MORE, "More", Icons.Default.MoreHoriz),
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable fun PsxWealthApp() {
-    var destination by rememberSaveable { mutableStateOf(Destination.Home) }
+@Composable
+fun PsxWealthApp(viewModel: AppViewModel = hiltViewModel()) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val navController = rememberNavController()
+    val backStack by navController.currentBackStackEntryAsState()
+    val route = backStack?.destination?.route ?: Routes.HOME
+    val snackbar = remember { SnackbarHostState() }
+    var showCreate by remember { mutableStateOf(false) }
+
+    LaunchedEffect(state.portfolios.isEmpty()) { if (state.portfolios.isEmpty()) showCreate = true }
+    LaunchedEffect(state.refreshMessage) {
+        state.refreshMessage?.let { snackbar.showSnackbar(it); viewModel.dismissMessage() }
+    }
+
     Scaffold(
-        topBar = { TopAppBar(title = { Text(destination.label, fontWeight = FontWeight.SemiBold) }, actions = { IconButton(onClick = {}) { Icon(Icons.Default.Refresh, "Refresh market data") } }) },
-        bottomBar = { NavigationBar { Destination.entries.forEach { item -> NavigationBarItem(selected = destination == item, onClick = { destination = item }, icon = { Icon(item.icon, null) }, label = { Text(item.label) }) } } }
-    ) { padding -> Box(Modifier.padding(padding).fillMaxSize()) { when (destination) {
-        Destination.Home -> HomeScreen(); Destination.Portfolio -> PortfolioScreen(); Destination.Research -> EmptyScreen("Search stocks and browse index constituents", Icons.Default.Search)
-        Destination.Rebalance -> RebalanceScreen(); Destination.More -> EmptyScreen("Backups, CSV export and preferences", Icons.Default.Settings)
-    } } }
+        snackbarHost = { SnackbarHost(snackbar) },
+        topBar = {
+            TopAppBar(
+                title = { Text(bottomDestinations.firstOrNull { route.startsWith(it.route) }?.label ?: "PSX Wealth") },
+                actions = {
+                    if (state.refreshing) CircularProgressIndicator()
+                    else IconButton(onClick = viewModel::refresh) { Icon(Icons.Default.Refresh, "Refresh cached market data") }
+                },
+            )
+        },
+        bottomBar = {
+            NavigationBar {
+                bottomDestinations.forEach { item ->
+                    NavigationBarItem(
+                        selected = route == item.route,
+                        onClick = { navController.navigate(item.route) { launchSingleTop = true; restoreState = true } },
+                        icon = { Icon(item.icon, null) },
+                        label = { Text(item.label) },
+                    )
+                }
+            }
+        },
+    ) { padding ->
+        Box(Modifier.padding(padding).fillMaxSize()) {
+            NavHost(navController, startDestination = Routes.HOME) {
+                composable(Routes.HOME) {
+                    HomeScreen(
+                        onAddDeposit = { navController.navigate(Routes.transaction("CASH_DEPOSIT")) },
+                        onAddBuy = { navController.navigate(Routes.transaction("BUY")) },
+                        onAddDividend = { navController.navigate(Routes.transaction("DIVIDEND")) },
+                        onRebalance = { navController.navigate(Routes.REBALANCE) },
+                        onCreatePortfolio = { showCreate = true },
+                    )
+                }
+                composable(Routes.PORTFOLIO) {
+                    PortfolioScreen(
+                        onAddTransaction = { navController.navigate(Routes.transaction(it.name)) },
+                        onEditTransaction = { type, id -> navController.navigate(Routes.transaction(type.name, id)) },
+                        onManualPrice = { navController.navigate(Routes.MANUAL_PRICE) },
+                        onTargets = { navController.navigate(Routes.TARGETS) },
+                    )
+                }
+                composable(Routes.RESEARCH) {
+                    EmptyState("Index explorer and research tools are available in the next stacked milestone", Icons.Default.Search)
+                }
+                composable(Routes.REBALANCE) {
+                    RebalanceScreen(
+                        onConfigureTargets = { navController.navigate(Routes.TARGETS) },
+                        onExecutePlan = { navController.navigate(Routes.execute(it)) },
+                    )
+                }
+                composable(Routes.MORE) {
+                    EmptyState("Reports, backup, diagnostics and security", Icons.Default.MoreHoriz)
+                }
+                composable(
+                    Routes.TRANSACTION,
+                    arguments = listOf(
+                        navArgument("type") { type = NavType.StringType; defaultValue = "BUY" },
+                        navArgument("id") { type = NavType.StringType; defaultValue = "0" },
+                    ),
+                ) { TransactionEditorScreen(onFinished = { navController.popBackStack() }) }
+                composable(Routes.MANUAL_PRICE) { ManualPriceScreen(onFinished = { navController.popBackStack() }) }
+                composable(Routes.TARGETS) { TargetScreen(onFinished = { navController.popBackStack() }) }
+                composable(
+                    Routes.EXECUTE_PLAN,
+                    arguments = listOf(navArgument("planId") { type = NavType.StringType }),
+                ) { ExecutePlanScreen(onFinished = { navController.popBackStack() }) }
+            }
+        }
+    }
+
+    if (showCreate) CreatePortfolioDialog(
+        canDismiss = state.portfolios.isNotEmpty(),
+        onDismiss = { showCreate = false },
+        onCreate = { name, benchmark -> viewModel.createPortfolio(name, benchmark); showCreate = false },
+    )
 }
 
-@Composable private fun HomeScreen() = LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-    item { Text("Your wealth at a glance", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
-    item { ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(20.dp)) { Text("Total portfolio value", style = MaterialTheme.typography.labelLarge); Text(rupees(0.0), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold); Text("Add a cash deposit to get started", color = MaterialTheme.colorScheme.onSurfaceVariant) } } }
-    item { Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { Metric("Invested", rupees(0.0), Modifier.weight(1f)); Metric("Cash", rupees(0.0), Modifier.weight(1f)) } }
-    item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(18.dp)) { Text("Offline ready", fontWeight = FontWeight.SemiBold); Text("Your ledger and the last successful market snapshot stay on this device.", color = MaterialTheme.colorScheme.onSurfaceVariant) } } }
+@Composable
+private fun CreatePortfolioDialog(
+    canDismiss: Boolean,
+    onDismiss: () -> Unit,
+    onCreate: (String, String) -> Unit,
+) {
+    var name by remember { mutableStateOf("Main Portfolio") }
+    var benchmark by remember { mutableStateOf("KMI30") }
+    AlertDialog(
+        onDismissRequest = { if (canDismiss) onDismiss() },
+        title = { Text("Create local portfolio") },
+        text = {
+            androidx.compose.foundation.layout.Column {
+                OutlinedTextField(name, { name = it }, label = { Text("Portfolio name") })
+                OutlinedTextField(benchmark, { benchmark = it.uppercase() }, label = { Text("Benchmark: KMI30, KSE100 or KMIALLSHR") })
+            }
+        },
+        confirmButton = { Button(onClick = { onCreate(name, benchmark) }, enabled = name.isNotBlank()) { Text("Create") } },
+        dismissButton = { if (canDismiss) TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
-
-@Composable private fun PortfolioScreen() = EmptyScreen("Create a portfolio, deposit cash, then record your first buy", Icons.Default.AccountBalanceWallet)
-
-@Composable private fun RebalanceScreen() = Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-    Text("SIP cash-first rebalancing", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-    Text("New cash is assigned to the most underweight holdings. Nothing is sold unless you explicitly choose a full rebalance.")
-    OutlinedTextField(value = "", onValueChange = {}, label = { Text("New cash amount (Rs)") }, modifier = Modifier.fillMaxWidth())
-    Button(onClick = {}, modifier = Modifier.fillMaxWidth()) { Text("Preview plan") }
-}
-
-@Composable private fun Metric(label: String, value: String, modifier: Modifier = Modifier) = Card(modifier) { Column(Modifier.padding(16.dp)) { Text(label, style = MaterialTheme.typography.labelMedium); Text(value, fontWeight = FontWeight.Bold) } }
-@Composable private fun EmptyScreen(message: String, icon: ImageVector) = Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Icon(icon, null, Modifier.size(52.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.height(16.dp)); Text(message, style = MaterialTheme.typography.titleMedium) }
-private fun rupees(value: Double) = NumberFormat.getCurrencyInstance(Locale("en", "PK")).format(value)
