@@ -6,7 +6,8 @@ does not place broker orders and does not require an account or a server.
 
 ## Implemented foundation
 
-- Material 3 Compose shell with Home, Portfolio, Research, Rebalance and More.
+- Branded green-and-gold Material 3 Compose experience with an adaptive launcher
+  icon, accessible charts, Home, Index Plan, Portfolio, Research and More.
 - A versioned Room ledger with multiple portfolios, securities, quotes, historical
   prices, dated index snapshots, targets, watchlists, rebalance plans, fundamentals
   and provider diagnostics.
@@ -27,11 +28,13 @@ does not place broker orders and does not require an account or a server.
 - A first-class Index Plan flow: choose capital and KMI30/KSE100/KMIALLSHR, load
   published stock weights, compare current versus target whole shares, and record
   explicit green buy/red sell gaps through prefilled ledger entries.
-- Research workspace with index/sector comparison and recomposition, dated wealth
-  history, XIRR, dividend analytics, stock price charts, offline watchlists, manual
-  fundamentals, explainable sector-aware scoring and a cache-only screener.
-- Contribution-matched KMI30/KSE100/KMIALLSHR benchmarking with explicit local
-  history refresh, fair dated cash-flow simulation, XIRR and 1Y/3Y/5Y/MAX charts.
+- Research workspace with index/sector comparison and recomposition, current value,
+  overall and periodic TWR/MWR, annualized XIRR, contribution-adjusted daily and
+  cumulative P/L, stock/sector doughnuts, holding-gain bars, dividend analytics,
+  offline watchlists, explainable scoring and a cache-only screener.
+- Simultaneous contribution-matched KMI30/KSE100/KMIALLSHR benchmarking with
+  explicit local history refresh, fair dated cash-flow simulation, gain/XIRR cards,
+  and 1Y/3Y/5Y/MAX multi-series charts.
 - Nine on-device CSV reports, versioned essential/full ZIP backups with validated
   transactional restore, provider diagnostics, persistent display/data/portfolio
   settings, and optional Keystore-backed PIN/device authentication and screen privacy.
@@ -43,7 +46,7 @@ The manual ledger and deterministic calculation layer work independently of
 market-data fetching, so a website change cannot break the owner's source-of-truth
 transactions.
 
-## Build
+## Build and install
 
 Install Android SDK 35, set `ANDROID_HOME` (or create `local.properties`), then:
 
@@ -52,6 +55,12 @@ gradle testDebugUnitTest lintDebug assembleDebug
 ```
 
 The minimum supported Android version is Android 8.0 (API 26).
+
+For Android Studio setup, debug installation, private release signing, signature
+verification, safe updates and troubleshooting, follow the
+[build, install and release guide](docs/BUILD_INSTALL_AND_RELEASE.md). A shorter
+[phone installation guide](docs/USER_INSTALLATION_GUIDE.md) is available for the
+person receiving the signed APK.
 
 ## Data principles
 
@@ -74,6 +83,9 @@ amount-to-index-to-shares experience and its rounding and ledger rules.
 
 See [analytics and research](docs/ANALYTICS_AND_RESEARCH.md) for return, dividend,
 fundamental-confidence and cache-only screening rules.
+
+See [performance analytics methodology](docs/PERFORMANCE_ANALYTICS.md) for the exact
+TWR, periodic MWR, P/L, allocation and contribution-matched benchmark formulas.
 
 See [reports, backup and local security](docs/REPORTS_BACKUP_SECURITY.md) for export,
 restore validation and device-protection details, and [MVP status](docs/MVP_STATUS.md)

@@ -33,8 +33,10 @@ import pk.psx.wealth.domain.FundamentalScoreEngine
 import pk.psx.wealth.domain.IndexLevel
 import pk.psx.wealth.domain.PerformanceEngine
 import pk.psx.wealth.domain.PerformanceSummary
+import pk.psx.wealth.domain.PeriodReturnSummary
 import pk.psx.wealth.domain.PortfolioSnapshot
 import pk.psx.wealth.domain.PortfolioTransaction
+import pk.psx.wealth.domain.ProfitLossPoint
 import pk.psx.wealth.domain.TransactionType
 import pk.psx.wealth.domain.WealthPoint
 import pk.psx.wealth.domain.ZERO
@@ -46,6 +48,8 @@ import javax.inject.Inject
 
 enum class ResearchSection { INDICES, PERFORMANCE, DIVIDENDS, SCREENER, WATCHLISTS }
 enum class Membership { BOTH, OWNED_ONLY, INDEX_ONLY }
+
+private val benchmarkIndexes = listOf("KMI30", "KSE100", "KMIALLSHR")
 
 data class IndexComparisonRow(
     val symbol: String,
@@ -89,6 +93,19 @@ data class BenchmarkResearchSummary(
     val portfolioValueDifference: BigDecimal?,
 )
 
+data class AllocationBreakdownRow(
+    val label: String,
+    val value: BigDecimal,
+    val weight: BigDecimal,
+    val profit: BigDecimal? = null,
+)
+
+data class HoldingGainRow(
+    val symbol: String,
+    val profit: BigDecimal,
+    val returnFraction: BigDecimal?,
+)
+
 data class ResearchUiState(
     val section: ResearchSection = ResearchSection.INDICES,
     val indexCode: String = "KMI30",
@@ -101,10 +118,17 @@ data class ResearchUiState(
     val removedSymbols: Set<String> = emptySet(),
     val performance: PerformanceSummary? = null,
     val wealthHistory: List<WealthPoint> = emptyList(),
+    val profitLossHistory: List<ProfitLossPoint> = emptyList(),
+    val periodicReturns: List<PeriodReturnSummary> = emptyList(),
     val benchmark: BenchmarkResearchSummary? = null,
     val benchmarkHistory: List<BenchmarkPoint> = emptyList(),
+    val benchmarkSummaries: List<BenchmarkResearchSummary> = emptyList(),
+    val benchmarkHistories: Map<String, List<BenchmarkPoint>> = emptyMap(),
     val benchmarkRefreshing: Boolean = false,
     val benchmarkMessage: String = "Benchmark history is unavailable until local index-level history has been cached.",
+    val portfolioAllocations: List<AllocationBreakdownRow> = emptyList(),
+    val sectorAllocations: List<AllocationBreakdownRow> = emptyList(),
+    val holdingGains: List<HoldingGainRow> = emptyList(),
     val dividends: DividendSummary? = null,
     val screenerRows: List<ScreenerRow> = emptyList(),
     val error: String? = null,
@@ -126,6 +150,12 @@ private data class ResearchChoices(
 private data class BenchmarkOperation(
     val refreshing: Boolean = false,
     val message: String? = null,
+)
+
+private data class BenchmarkBundle(
+    val levels: List<IndexLevel>,
+    val summary: BenchmarkResearchSummary?,
+    val history: List<BenchmarkPoint>,
 )
 
 @HiltViewModel
@@ -173,7 +203,11 @@ class ResearchViewModel @Inject constructor(
     fun addToWatchlist(id: Long, symbol: String, notes: String) = operation { research.addToWatchlist(id, symbol, notes) }
     fun removeFromWatchlist(id: Long, symbol: String) = operation { research.removeFromWatchlist(id, symbol) }
 
-    fun refreshBenchmarkHistory() {
+    fun refreshBenchmarkHistory() = refreshBenchmarkHistories(listOf(indexCode.value))
+
+    fun refreshAllBenchmarkHistories() = refreshBenchmarkHistories(benchmarkIndexes)
+
+    private fun refreshBenchmarkHistories(indexes: List<String>) {
         if (benchmarkOperation.value.refreshing) return
         viewModelScope.launch {
             benchmarkOperation.value = BenchmarkOperation(refreshing = true)
@@ -185,10 +219,18 @@ class ResearchViewModel @Inject constructor(
                     .map(PortfolioTransaction::tradeDate)
                     .minOrNull()
                 val from = (firstExternalFlow ?: asOf.minusYears(5)).minusDays(10)
-                market.refreshHistory(indexCode.value, from, asOf)
+                indexes.distinct().map { code -> code to market.refreshHistory(code, from, asOf) }
             }
             benchmarkOperation.value = BenchmarkOperation(
-                message = result.fold({ it.message }, { it.message ?: "Benchmark refresh failed. Cached history is unchanged." }),
+                message = result.fold(
+                    onSuccess = { rows ->
+                        val updated = rows.count { it.second.success }
+                        val failed = rows.size - updated
+                        if (failed == 0) "Updated ${rows.joinToString { it.first }} benchmark history."
+                        else "$updated benchmark histories updated, $failed failed. Existing cached history remains available."
+                    },
+                    onFailure = { it.message ?: "Benchmark refresh failed. Cached history is unchanged." },
+                ),
             )
         }
     }
@@ -203,7 +245,6 @@ class ResearchViewModel @Inject constructor(
         val latest = history.firstOrNull()
         val previous = history.drop(1).firstOrNull()
         val comparison = indexComparison(source.portfolio.snapshot, latest)
-        val performance = source.portfolio.snapshot?.let { performanceEngine.summary(it, source.portfolio.transactions, asOf) }
         val wealth = runCatching {
             performanceEngine.wealthHistory(source.portfolio.transactions, source.prices, asOf).let { points ->
                 val snapshot = source.portfolio.snapshot
@@ -212,22 +253,20 @@ class ResearchViewModel @Inject constructor(
                 } else points
             }
         }.getOrDefault(emptyList())
-        val indexLevels = source.prices.asSequence()
-            .filter { it.symbol == choice.indexCode && !it.date.isAfter(asOf) }
-            .map { IndexLevel(it.date, it.close) }
-            .toList()
-        val benchmarkSimulation = performanceEngine.simulateBenchmark(source.portfolio.transactions, indexLevels, asOf)
-        val benchmarkHistory = performanceEngine.benchmarkHistory(source.portfolio.transactions, indexLevels, asOf).orEmpty()
-        val terminalDate = indexLevels.maxByOrNull(IndexLevel::date)?.date
-        val benchmark = if (benchmarkSimulation == null || terminalDate == null) null else BenchmarkResearchSummary(
-            indexCode = choice.indexCode,
-            terminalDate = terminalDate,
-            terminalValue = benchmarkSimulation.terminalValue,
-            totalProfit = benchmarkSimulation.terminalValue.subtract(source.portfolio.snapshot?.netContributions ?: ZERO),
-            xirr = performanceEngine.xirr(source.portfolio.transactions, benchmarkSimulation.terminalValue, asOf),
-            portfolioValueDifference = source.portfolio.snapshot?.takeIf { it.hasCompletePrices }
-                ?.totalPortfolioValue?.subtract(benchmarkSimulation.terminalValue),
-        )
+        val performance = source.portfolio.snapshot?.let {
+            performanceEngine.summary(it, source.portfolio.transactions, asOf).copy(
+                timeWeightedReturn = performanceEngine.timeWeightedReturnFromHistory(wealth),
+            )
+        }
+        val profitLoss = performanceEngine.profitLossHistory(wealth)
+        val periodicReturns = performanceEngine.periodicReturns(wealth, source.portfolio.transactions, asOf)
+        val benchmarkBundles = benchmarkIndexes.associateWith { code ->
+            benchmarkBundle(code, source, asOf)
+        }
+        val selectedBundle = benchmarkBundles.getValue(choice.indexCode)
+        val indexLevels = selectedBundle.levels
+        val benchmark = selectedBundle.summary
+        val benchmarkHistory = selectedBundle.history
         val benchmarkMessage = choice.benchmarkOperation.message ?: when {
             source.portfolio.transactions.none { it.type == TransactionType.CASH_DEPOSIT || it.type == TransactionType.CASH_WITHDRAWAL } ->
                 "Record at least one deposit before comparing performance."
@@ -252,15 +291,104 @@ class ResearchViewModel @Inject constructor(
                 previous.constituents.map { it.symbol }.toSet() - latest?.constituents.orEmpty().map { it.symbol }.toSet(),
             performance = performance,
             wealthHistory = wealth,
+            profitLossHistory = profitLoss,
+            periodicReturns = periodicReturns,
             benchmark = benchmark,
             benchmarkHistory = benchmarkHistory,
+            benchmarkSummaries = benchmarkBundles.values.mapNotNull { it.summary },
+            benchmarkHistories = benchmarkBundles.mapValues { it.value.history }.filterValues { it.isNotEmpty() },
             benchmarkRefreshing = choice.benchmarkOperation.refreshing,
             benchmarkMessage = benchmarkMessage,
+            portfolioAllocations = portfolioAllocations(source.portfolio.snapshot),
+            sectorAllocations = sectorAllocations(source.portfolio.snapshot, source.catalog.securities),
+            holdingGains = holdingGains(source.portfolio.snapshot),
             dividends = source.portfolio.snapshot?.let { dividendEngine.summarize(source.portfolio.transactions, it, asOf) },
             screenerRows = screener(source.catalog, source.prices, asOf),
             error = choice.error,
         )
     }
+
+    private fun benchmarkBundle(indexCode: String, source: ResearchSources, asOf: LocalDate): BenchmarkBundle {
+        val levels = source.prices.asSequence()
+            .filter { it.symbol == indexCode && !it.date.isAfter(asOf) }
+            .map { IndexLevel(it.date, it.close) }
+            .toList()
+        val simulation = performanceEngine.simulateBenchmark(source.portfolio.transactions, levels, asOf)
+        val history = performanceEngine.benchmarkHistory(source.portfolio.transactions, levels, asOf).orEmpty()
+        val terminalDate = levels.maxByOrNull(IndexLevel::date)?.date
+        val summary = if (simulation == null || terminalDate == null) null else BenchmarkResearchSummary(
+            indexCode = indexCode,
+            terminalDate = terminalDate,
+            terminalValue = simulation.terminalValue,
+            totalProfit = simulation.terminalValue.subtract(source.portfolio.snapshot?.netContributions ?: ZERO),
+            xirr = performanceEngine.xirr(source.portfolio.transactions, simulation.terminalValue, asOf),
+            portfolioValueDifference = source.portfolio.snapshot?.takeIf { it.hasCompletePrices }
+                ?.totalPortfolioValue?.subtract(simulation.terminalValue),
+        )
+        return BenchmarkBundle(levels, summary, history)
+    }
+
+    private fun portfolioAllocations(snapshot: PortfolioSnapshot?): List<AllocationBreakdownRow> {
+        if (snapshot == null) return emptyList()
+        val holdings = snapshot.holdings.mapNotNull { holding ->
+            holding.marketValue?.takeIf { it.signum() > 0 }?.let { value -> holding to value }
+        }
+        val values = holdings.map { it.second }.toMutableList()
+        if (snapshot.cashBalance.signum() > 0) values += snapshot.cashBalance
+        val total = values.fold(ZERO, BigDecimal::add)
+        if (total.signum() <= 0) return emptyList()
+        return buildList {
+            holdings.forEach { (holding, value) ->
+                add(AllocationBreakdownRow(
+                    label = holding.symbol,
+                    value = value,
+                    weight = value.divide(total, pk.psx.wealth.domain.MONEY_CONTEXT),
+                    profit = holding.totalProfit,
+                ))
+            }
+            if (snapshot.cashBalance.signum() > 0) {
+                add(AllocationBreakdownRow(
+                    label = "Cash",
+                    value = snapshot.cashBalance,
+                    weight = snapshot.cashBalance.divide(total, pk.psx.wealth.domain.MONEY_CONTEXT),
+                ))
+            }
+        }.sortedByDescending(AllocationBreakdownRow::value)
+    }
+
+    private fun sectorAllocations(
+        snapshot: PortfolioSnapshot?,
+        securities: List<SecurityEntity>,
+    ): List<AllocationBreakdownRow> {
+        if (snapshot == null || snapshot.stockMarketValue.signum() <= 0) return emptyList()
+        val sectorBySymbol = securities.associate { it.symbol to (it.sector?.takeIf(String::isNotBlank) ?: "Unknown") }
+        return snapshot.holdings.mapNotNull { holding ->
+            holding.marketValue?.takeIf { it.signum() > 0 }?.let { value ->
+                Triple(sectorBySymbol[holding.symbol] ?: "Unknown", value, holding.totalProfit ?: ZERO)
+            }
+        }.groupBy { it.first }.map { (sector, rows) ->
+            val value = rows.map { it.second }.fold(ZERO, BigDecimal::add)
+            AllocationBreakdownRow(
+                label = sector,
+                value = value,
+                weight = value.divide(snapshot.stockMarketValue, pk.psx.wealth.domain.MONEY_CONTEXT),
+                profit = rows.map { it.third }.fold(ZERO, BigDecimal::add),
+            )
+        }.sortedByDescending(AllocationBreakdownRow::value)
+    }
+
+    private fun holdingGains(snapshot: PortfolioSnapshot?): List<HoldingGainRow> = snapshot?.holdings.orEmpty()
+        .mapNotNull { holding ->
+            holding.totalProfit?.let { profit ->
+                HoldingGainRow(
+                    symbol = holding.symbol,
+                    profit = profit,
+                    returnFraction = holding.remainingCost.takeIf { it.signum() > 0 }
+                        ?.let { profit.divide(it, pk.psx.wealth.domain.MONEY_CONTEXT) },
+                )
+            }
+        }
+        .sortedByDescending { it.profit }
 
     private fun indexComparison(snapshot: PortfolioSnapshot?, index: IndexResearchSnapshot?): List<IndexComparisonRow> {
         val indexRows = index?.constituents.orEmpty().associateBy { it.symbol }

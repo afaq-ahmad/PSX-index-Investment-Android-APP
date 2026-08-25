@@ -98,14 +98,24 @@ fun IndexPlanScreen(
                         Text("Build your index portfolio", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     }
                     Text(
-                        "Choose an index and new funds. The published percentages stay visible while the app calculates whole-share buy or sell gaps.",
+                        "Enter the amount, choose an index, then load its stocks. Published percentages stay visible while the app calculates whole-share buy or sell gaps.",
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
                 }
             }
         }
         item {
-            Text("1 · Index and investment amount", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("1 · Investment amount and index", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            OutlinedTextField(
+                value = state.additionalFunds,
+                onValueChange = viewModel::setAdditionalFunds,
+                label = { Text("New funds to invest (PKR)") },
+                supportingText = { Text("Use 0 to rebalance only the current portfolio.") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text("Choose the index to follow", style = MaterialTheme.typography.labelLarge)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("KMI30", "KSE100", "KMIALLSHR").forEach { code ->
                     FilterChip(
@@ -117,18 +127,9 @@ fun IndexPlanScreen(
                 }
             }
             Text(state.indexCode.indexDescription(), style = MaterialTheme.typography.bodySmall)
-            OutlinedTextField(
-                value = state.additionalFunds,
-                onValueChange = viewModel::setAdditionalFunds,
-                label = { Text("New funds to invest (PKR)") },
-                supportingText = { Text("Use 0 to rebalance only the current portfolio.") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 MetricCard("Current value", pkr(state.calculatedCurrentValue), Modifier.weight(1f))
-                MetricCard("After new funds", pkr(plan?.targetCapital), Modifier.weight(1f))
+                MetricCard("After new funds", pkr(state.investableCapital), Modifier.weight(1f))
             }
             val deposit = state.additionalFunds.toBigDecimalOrNull()
             OutlinedButton(
@@ -320,7 +321,7 @@ private fun PlanMetric(label: String, value: String, color: Color, modifier: Mod
 }
 
 @Composable
-private fun buyColor() = Color(0xFF18794E)
+private fun buyColor() = MaterialTheme.colorScheme.primary
 
 @Composable
 private fun actionColor(action: IndexGapAction): Color = when (action) {

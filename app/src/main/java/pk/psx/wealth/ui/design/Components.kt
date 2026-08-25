@@ -23,11 +23,17 @@ import java.text.DecimalFormat
 import pk.psx.wealth.data.preferences.NumberFormatPreference
 
 @Composable
-fun MetricCard(label: String, value: String, modifier: Modifier = Modifier, supporting: String? = null) {
+fun MetricCard(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    supporting: String? = null,
+    valueColor: Color = Color.Unspecified,
+) {
     Card(modifier) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = valueColor)
             supporting?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
         }
     }
@@ -70,7 +76,7 @@ fun percentValue(value: BigDecimal?): String = value?.let { "${DecimalFormat("0.
 
 @Composable
 fun profitColor(value: BigDecimal?): Color = when (value?.signum()) {
-    1 -> Color(0xFF18794E)
+    1 -> MaterialTheme.colorScheme.primary
     -1 -> MaterialTheme.colorScheme.error
     else -> MaterialTheme.colorScheme.onSurface
 }

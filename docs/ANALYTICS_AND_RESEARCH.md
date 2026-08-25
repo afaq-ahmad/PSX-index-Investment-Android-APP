@@ -8,6 +8,12 @@ flows; buys and sells are internal portfolio movements. Current portfolio value
 is the terminal positive flow. The solver returns unavailable when the cash-flow
 signs or dates cannot support a meaningful annualized result.
 
+Time-weighted return chain-links complete local valuation periods after removing
+the effect of each period's deposits and withdrawals. The app shows overall TWR
+plus 1M, 3M, YTD, 1Y and MAX periodic TWR. Periodic MWR includes the opening value,
+within-period external flows and ending value; the solved annualized XIRR is
+converted to the exact period length. Actual observation dates are displayed.
+
 Wealth history replays the ledger on local transaction and price dates. It carries
 the most recent prior cached close forward but omits a date if any then-held
 security has no known price. Missing prices are never converted to zero.
@@ -20,6 +26,15 @@ withdrawal as index units, calculates a contribution-matched terminal value/XIRR
 and draws portfolio-versus-index history for 1Y, 3Y, 5Y or MAX. A non-trading-day
 flow uses the most recent prior close; the app never interpolates or substitutes
 zero. If history does not cover the first contribution, comparison stays unavailable.
+
+The performance dashboard can compare the portfolio with all three supported
+indexes on one contribution-matched chart. Daily P/L removes the change in net
+contributions between complete valuations, while cumulative P/L is current wealth
+minus net contributions. Portfolio and sector doughnuts retain exact percentage
+rows and holding gains use the transaction-derived profit decomposition.
+
+See [the full methodology](PERFORMANCE_ANALYTICS.md) for formulas, denominators,
+missing-data behaviour and the accuracy checklist.
 
 ## Dividends
 

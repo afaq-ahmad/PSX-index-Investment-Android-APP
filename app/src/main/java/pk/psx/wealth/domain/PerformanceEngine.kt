@@ -16,6 +16,7 @@ data class PerformanceSummary(
     val totalProfit: BigDecimal?,
     val absoluteReturn: BigDecimal?,
     val xirr: BigDecimal?,
+    val timeWeightedReturn: BigDecimal? = null,
 )
 
 data class WealthPoint(
@@ -36,6 +37,22 @@ data class BenchmarkPoint(
     val date: LocalDate,
     val value: BigDecimal,
     val netContributions: BigDecimal,
+)
+
+data class ProfitLossPoint(
+    val date: LocalDate,
+    val dailyProfitLoss: BigDecimal?,
+    val cumulativeProfitLoss: BigDecimal,
+)
+
+data class PeriodReturnSummary(
+    val label: String,
+    val startDate: LocalDate,
+    val endDate: LocalDate,
+    val timeWeightedReturn: BigDecimal?,
+    /** Non-annualized money-weighted return for this exact period. */
+    val moneyWeightedReturn: BigDecimal?,
+    val profitLoss: BigDecimal?,
 )
 
 class PerformanceEngine @Inject constructor(private val calculator: PortfolioCalculator) {
@@ -69,6 +86,10 @@ class PerformanceEngine @Inject constructor(private val calculator: PortfolioCal
                 else -> null
             }
         }.filter { !it.first.isAfter(terminalDate) } + (terminalDate to terminalValue)
+        return solveXirr(flows)
+    }
+
+    private fun solveXirr(flows: List<Pair<LocalDate, BigDecimal>>): BigDecimal? {
         val grouped = flows.groupBy { it.first }
             .map { (date, values) -> date to values.map { it.second }.fold(ZERO, BigDecimal::add) }
             .filter { it.second.signum() != 0 }
@@ -130,6 +151,110 @@ class PerformanceEngine @Inject constructor(private val calculator: PortfolioCal
             val rate = period.endValue.subtract(period.externalFlow).divide(period.startValue, MONEY_CONTEXT)
             growth.multiply(rate, MONEY_CONTEXT)
         }.subtract(BigDecimal.ONE)
+    }
+
+    /**
+     * Builds valuation sub-periods from contribution-adjusted wealth observations.
+     * Contributions are treated as end-of-period flows, matching [ValuationPeriod].
+     */
+    fun timeWeightedReturnFromHistory(history: List<WealthPoint>): BigDecimal? {
+        val points = history.sortedBy(WealthPoint::date).distinctBy(WealthPoint::date)
+        if (points.size < 2) return null
+        return timeWeightedReturn(points.zipWithNext { start, end ->
+            ValuationPeriod(
+                startValue = start.value,
+                endValue = end.value,
+                externalFlow = end.netContributions.subtract(start.netContributions),
+            )
+        })
+    }
+
+    /** Daily means each available complete local valuation date; gaps are never fabricated. */
+    fun profitLossHistory(history: List<WealthPoint>): List<ProfitLossPoint> {
+        val points = history.sortedBy(WealthPoint::date).distinctBy(WealthPoint::date)
+        return points.mapIndexed { index, point ->
+            val previous = points.getOrNull(index - 1)
+            val daily = previous?.let {
+                point.value.subtract(it.value)
+                    .subtract(point.netContributions.subtract(it.netContributions))
+            }
+            ProfitLossPoint(
+                date = point.date,
+                dailyProfitLoss = daily,
+                cumulativeProfitLoss = point.value.subtract(point.netContributions),
+            )
+        }
+    }
+
+    /**
+     * Calculates comparable 1M, 3M, YTD, 1Y and MAX returns from complete local
+     * valuation observations. TWR is chain-linked; MWR is an XIRR converted from
+     * an annualized rate to the exact period length.
+     */
+    fun periodicReturns(
+        history: List<WealthPoint>,
+        transactions: List<PortfolioTransaction>,
+        asOf: LocalDate,
+    ): List<PeriodReturnSummary> {
+        val points = history.filter { !it.date.isAfter(asOf) }
+            .sortedBy(WealthPoint::date)
+            .distinctBy(WealthPoint::date)
+        val windows = listOf(
+            "1M" to asOf.minusMonths(1),
+            "3M" to asOf.minusMonths(3),
+            "YTD" to asOf.withDayOfYear(1),
+            "1Y" to asOf.minusYears(1),
+            "MAX" to (points.firstOrNull()?.date ?: asOf),
+        )
+        return windows.map { (label, requestedStart) ->
+            val anchor = points.lastOrNull { !it.date.isAfter(requestedStart) }
+            val afterStart = points.filter { !it.date.isBefore(requestedStart) }
+            val periodPoints = (listOfNotNull(anchor) + afterStart).distinctBy(WealthPoint::date)
+            val start = periodPoints.firstOrNull()
+            val end = periodPoints.lastOrNull()
+            if (start == null || end == null || start.date == end.date) {
+                PeriodReturnSummary(label, requestedStart, asOf, null, null, null)
+            } else {
+                val profit = end.value.subtract(start.value)
+                    .subtract(end.netContributions.subtract(start.netContributions))
+                PeriodReturnSummary(
+                    label = label,
+                    startDate = start.date,
+                    endDate = end.date,
+                    timeWeightedReturn = timeWeightedReturnFromHistory(periodPoints),
+                    moneyWeightedReturn = periodicMoneyWeightedReturn(start, end, transactions),
+                    profitLoss = profit,
+                )
+            }
+        }
+    }
+
+    private fun periodicMoneyWeightedReturn(
+        start: WealthPoint,
+        end: WealthPoint,
+        transactions: List<PortfolioTransaction>,
+    ): BigDecimal? {
+        val flows = buildList {
+            add(start.date to start.value.negate())
+            transactions.asSequence()
+                .filter { it.tradeDate.isAfter(start.date) && !it.tradeDate.isAfter(end.date) }
+                .mapNotNull { transaction ->
+                    val amount = transaction.cashAmount ?: transaction.grossAmount
+                        ?: transaction.quantity.multiply(transaction.price)
+                    when (transaction.type) {
+                        TransactionType.CASH_DEPOSIT -> transaction.tradeDate to amount.negate()
+                        TransactionType.CASH_WITHDRAWAL -> transaction.tradeDate to amount
+                        else -> null
+                    }
+                }
+                .forEach { add(it) }
+            add(end.date to end.value)
+        }
+        val annualized = solveXirr(flows) ?: return null
+        val days = ChronoUnit.DAYS.between(start.date, end.date)
+        if (days <= 0 || annualized <= BigDecimal("-1")) return null
+        val periodRate = (1.0 + annualized.toDouble()).pow(days.toDouble() / 365.0) - 1.0
+        return periodRate.takeIf(Double::isFinite)?.let(BigDecimal::valueOf)
     }
 
     /**
