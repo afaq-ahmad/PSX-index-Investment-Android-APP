@@ -27,6 +27,8 @@ does not place broker orders and does not require an account or a server.
 - Research workspace with index/sector comparison and recomposition, dated wealth
   history, XIRR, dividend analytics, stock price charts, offline watchlists, manual
   fundamentals, explainable sector-aware scoring and a cache-only screener.
+- Contribution-matched KMI30/KSE100/KMIALLSHR benchmarking with explicit local
+  history refresh, fair dated cash-flow simulation, XIRR and 1Y/3Y/5Y/MAX charts.
 - Nine on-device CSV reports, versioned essential/full ZIP backups with validated
   transactional restore, provider diagnostics, persistent display/data/portfolio
   settings, and optional Keystore-backed PIN/device authentication and screen privacy.

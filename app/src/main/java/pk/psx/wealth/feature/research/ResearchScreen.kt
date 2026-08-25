@@ -44,6 +44,7 @@ import pk.psx.wealth.ui.design.pkr
 import pk.psx.wealth.ui.design.profitColor
 import java.math.BigDecimal
 import java.math.RoundingMode
+import java.time.LocalDate
 
 @Composable
 fun ResearchScreen(
@@ -68,7 +69,11 @@ fun ResearchScreen(
         Box(Modifier.weight(1f)) {
             when (state.section) {
                 ResearchSection.INDICES -> IndexPane(state, viewModel::selectIndex, onOpenStock)
-                ResearchSection.PERFORMANCE -> PerformancePane(state)
+                ResearchSection.PERFORMANCE -> PerformancePane(
+                    state,
+                    viewModel::selectIndex,
+                    viewModel::refreshBenchmarkHistory,
+                )
                 ResearchSection.DIVIDENDS -> DividendPane(state, onOpenStock)
                 ResearchSection.SCREENER -> ScreenerPane(state.screenerRows, onOpenStock)
                 ResearchSection.WATCHLISTS -> WatchlistsPane(state, viewModel, onOpenStock)
@@ -148,15 +153,32 @@ private fun IndexPane(state: ResearchUiState, onSelectIndex: (String) -> Unit, o
     }
 }
 
+private enum class PerformanceRange(val years: Long?) { ONE_YEAR(1), THREE_YEARS(3), FIVE_YEARS(5), MAX(null) }
+
 @Composable
-private fun PerformancePane(state: ResearchUiState) {
+private fun PerformancePane(
+    state: ResearchUiState,
+    onSelectBenchmark: (String) -> Unit,
+    onRefreshBenchmark: () -> Unit,
+) {
     val result = state.performance
+    var range by remember(state.indexCode) { mutableStateOf(PerformanceRange.MAX) }
+    val comparisonPoints = alignBenchmarkHistory(state.wealthHistory, state.benchmarkHistory)
+    val visiblePoints = comparisonPoints.filterRange(range)
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { Text("Performance", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
+        item {
+            Text("Performance", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text("Benchmark", style = MaterialTheme.typography.labelLarge)
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("KMI30", "KSE100", "KMIALLSHR").forEach { code ->
+                    FilterChip(state.indexCode == code, { onSelectBenchmark(code) }, label = { Text(code) })
+                }
+            }
+        }
         if (result == null) {
             item { Text("Create a portfolio and record contributions to calculate performance.") }
         } else {
@@ -190,14 +212,74 @@ private fun PerformancePane(state: ResearchUiState) {
             item {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Portfolio vs benchmark", fontWeight = FontWeight.Bold)
+                        Text("Portfolio vs ${state.indexCode}", fontWeight = FontWeight.Bold)
                         Text(state.benchmarkMessage)
-                        Text("No simple percentage comparison is shown because contribution dates must be simulated fairly.", style = MaterialTheme.typography.bodySmall)
+                        OutlinedButton(
+                            onClick = onRefreshBenchmark,
+                            enabled = !state.benchmarkRefreshing,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text(if (state.benchmarkRefreshing) "Downloading history…" else "Refresh ${state.indexCode} history") }
+                        state.benchmark?.let { benchmark ->
+                            LabelValue("Benchmark value", pkr(benchmark.terminalValue))
+                            LabelValue("Benchmark profit", pkr(benchmark.totalProfit), profitColor(benchmark.totalProfit))
+                            LabelValue("Benchmark XIRR", percentFraction(benchmark.xirr))
+                            LabelValue(
+                                "Portfolio value difference",
+                                pkr(benchmark.portfolioValueDifference),
+                                profitColor(benchmark.portfolioValueDifference),
+                            )
+                            LabelValue("Index close used through", benchmark.terminalDate.toString())
+                        }
+                    }
+                }
+            }
+            if (visiblePoints.isNotEmpty() && state.benchmark != null) {
+                item {
+                    Text("Contribution-matched comparison", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("Both lines receive the same dated deposits and withdrawals. This is not a misleading simple index return.")
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        PerformanceRange.entries.forEach { value ->
+                            FilterChip(range == value, { range = value }, label = { Text(value.label()) })
+                        }
+                    }
+                    LongTermLineChart(visiblePoints)
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Portfolio", color = MaterialTheme.colorScheme.primary)
+                        Text(state.indexCode, color = MaterialTheme.colorScheme.tertiary)
                     }
                 }
             }
         }
     }
+}
+
+private fun alignBenchmarkHistory(
+    portfolio: List<pk.psx.wealth.domain.WealthPoint>,
+    benchmark: List<pk.psx.wealth.domain.BenchmarkPoint>,
+): List<ChartPoint> {
+    if (portfolio.isEmpty() || benchmark.isEmpty()) return emptyList()
+    val sortedBenchmark = benchmark.sortedBy { it.date }
+    var benchmarkIndex = -1
+    return portfolio.sortedBy { it.date }.map { point ->
+        while (benchmarkIndex + 1 < sortedBenchmark.size && !sortedBenchmark[benchmarkIndex + 1].date.isAfter(point.date)) {
+            benchmarkIndex++
+        }
+        ChartPoint(point.date, point.value, sortedBenchmark.getOrNull(benchmarkIndex)?.value)
+    }.filter { it.comparison != null }
+}
+
+private fun List<ChartPoint>.filterRange(range: PerformanceRange): List<ChartPoint> {
+    val years = range.years ?: return this
+    val lastDate = lastOrNull()?.date ?: LocalDate.MIN
+    val firstDate = lastDate.minusYears(years)
+    return filter { !it.date.isBefore(firstDate) }
+}
+
+private fun PerformanceRange.label() = when (this) {
+    PerformanceRange.ONE_YEAR -> "1Y"
+    PerformanceRange.THREE_YEARS -> "3Y"
+    PerformanceRange.FIVE_YEARS -> "5Y"
+    PerformanceRange.MAX -> "MAX"
 }
 
 @Composable
