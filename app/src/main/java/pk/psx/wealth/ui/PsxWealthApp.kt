@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -19,6 +20,7 @@ private enum class Destination(val label: String, val icon: ImageVector) {
     Home("Home", Icons.Default.Home), Portfolio("Portfolio", Icons.Default.PieChart), Research("Research", Icons.Default.Search), Rebalance("Rebalance", Icons.Default.Balance), More("More", Icons.Default.MoreHoriz)
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable fun PsxWealthApp() {
     var destination by rememberSaveable { mutableStateOf(Destination.Home) }
     Scaffold(
@@ -49,4 +51,3 @@ private enum class Destination(val label: String, val icon: ImageVector) {
 @Composable private fun Metric(label: String, value: String, modifier: Modifier = Modifier) = Card(modifier) { Column(Modifier.padding(16.dp)) { Text(label, style = MaterialTheme.typography.labelMedium); Text(value, fontWeight = FontWeight.Bold) } }
 @Composable private fun EmptyScreen(message: String, icon: ImageVector) = Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Icon(icon, null, Modifier.size(52.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.height(16.dp)); Text(message, style = MaterialTheme.typography.titleMedium) }
 private fun rupees(value: Double) = NumberFormat.getCurrencyInstance(Locale("en", "PK")).format(value)
-
