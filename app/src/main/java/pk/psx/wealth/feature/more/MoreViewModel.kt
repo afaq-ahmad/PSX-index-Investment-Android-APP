@@ -14,6 +14,7 @@ import kotlinx.coroutines.withContext
 import pk.psx.wealth.data.backup.BackupKind
 import pk.psx.wealth.data.backup.BackupService
 import pk.psx.wealth.data.backup.RestorePreview
+import pk.psx.wealth.data.diagnostics.LocalDataHealthService
 import pk.psx.wealth.data.local.BackupDao
 import pk.psx.wealth.data.local.DiagnosticsDao
 import pk.psx.wealth.data.local.ProviderStatusEntity
@@ -44,6 +45,7 @@ data class MoreUiState(
     val settings: AppSettings = AppSettings(),
     val diagnostics: List<ProviderStatusEntity> = emptyList(),
     val counts: DataCounts = DataCounts(),
+    val health: pk.psx.wealth.domain.DataHealthReport = pk.psx.wealth.domain.DataHealthReport(),
     val export: ExportPayload? = null,
     val restorePreview: RestorePreview? = null,
     val busy: Boolean = false,
@@ -66,14 +68,16 @@ class MoreViewModel @Inject constructor(
     private val backups: BackupService,
     private val scheduler: MarketRefreshScheduler,
     private val session: PortfolioSession,
+    private val healthService: LocalDataHealthService,
 ) : ViewModel() {
     private val counts = MutableStateFlow(DataCounts())
+    private val health = MutableStateFlow(pk.psx.wealth.domain.DataHealthReport())
     private val operation = MutableStateFlow(MoreOperation())
 
     val state: StateFlow<MoreUiState> = combine(
-        settingsRepository.settings, diagnosticsDao.observeProviderStatus(), counts, operation,
-    ) { settings, diagnostics, localCounts, op ->
-        MoreUiState(settings, diagnostics, localCounts, op.export, op.restorePreview, op.busy, op.message)
+        settingsRepository.settings, diagnosticsDao.observeProviderStatus(), counts, health, operation,
+    ) { settings, diagnostics, localCounts, localHealth, op ->
+        MoreUiState(settings, diagnostics, localCounts, localHealth, op.export, op.restorePreview, op.busy, op.message)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MoreUiState())
 
     private var pendingRestore: ByteArray? = null
@@ -150,6 +154,9 @@ class MoreViewModel @Inject constructor(
             indexSnapshots = backupDao.indexSnapshotCount(),
             fundamentals = backupDao.fundamentalCount(),
         )
+        runCatching { healthService.inspect() }
+            .onSuccess { health.value = it }
+            .onFailure { operation.value = operation.value.copy(message = it.message ?: "Could not run local data checks") }
     }
 
     private suspend fun runBusy(block: suspend () -> Unit) {

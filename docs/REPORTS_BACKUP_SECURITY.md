@@ -48,3 +48,10 @@ Provider capability rows expose last attempt, last success, cached record count,
 and sanitized last error. Failed refreshes preserve the prior cache. Settings for
 theme, Standard versus Lakh/Crore display, default portfolio/benchmark/rebalance
 inputs, optional refresh scheduling, privacy, and locking persist in DataStore.
+
+The Diagnostics tab also runs a read-only local health audit. It checks ledger
+references and replayability, future dates, negative cash, target limits, missing or
+stale quotes, invalid prices, required index caches, member counts, weight totals and
+snapshot freshness. Findings are grouped as error, warning or information with an
+explicit corrective action. The audit never edits a transaction and never sends
+portfolio data off the device.

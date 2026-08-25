@@ -29,6 +29,8 @@ does not place broker orders and does not require an account or a server.
 - Nine on-device CSV reports, versioned essential/full ZIP backups with validated
   transactional restore, provider diagnostics, persistent display/data/portfolio
   settings, and optional Keystore-backed PIN/device authentication and screen privacy.
+- Read-only local health audits for ledger replay, negative cash, allocation targets,
+  missing/stale prices and index-cache integrity, with actionable on-device findings.
 - Unit coverage for accounting and rebalancing edge cases plus Android CI.
 
 The manual ledger and deterministic calculation layer work independently of
