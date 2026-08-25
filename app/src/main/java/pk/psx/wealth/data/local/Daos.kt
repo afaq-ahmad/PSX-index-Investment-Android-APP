@@ -47,6 +47,8 @@ interface TransactionDao {
     @Delete suspend fun delete(entity: TransactionEntity)
     @Query("DELETE FROM transactions WHERE id = :id") suspend fun deleteById(id: Long)
     @Query("SELECT COUNT(*) FROM transactions") suspend fun count(): Int
+    @Query("SELECT DISTINCT symbol FROM transactions WHERE symbol IS NOT NULL AND symbol != '' ORDER BY symbol")
+    suspend fun distinctSymbols(): List<String>
 }
 
 @Dao
@@ -75,6 +77,8 @@ interface IndexDao {
     fun observeLatestSnapshot(code: String): Flow<IndexSnapshotEntity?>
     @Query("SELECT * FROM index_snapshot_headers WHERE indexCode = :code ORDER BY snapshotDate DESC, retrievedAt DESC LIMIT 1")
     suspend fun latestSnapshot(code: String): IndexSnapshotEntity?
+    @Query("SELECT id FROM index_snapshot_headers WHERE indexCode = :code AND snapshotDate = :date LIMIT 1")
+    suspend fun snapshotId(code: String, date: String): Long?
     @Query("SELECT * FROM index_snapshot_headers WHERE indexCode = :code ORDER BY snapshotDate DESC, retrievedAt DESC")
     suspend fun snapshots(code: String): List<IndexSnapshotEntity>
     @Query("SELECT * FROM index_constituents WHERE snapshotId = :snapshotId ORDER BY weightPercent DESC, symbol")
@@ -89,6 +93,7 @@ interface IndexDao {
 
     @Transaction
     suspend fun insertCompleteSnapshot(header: IndexSnapshotEntity, rows: List<IndexConstituentEntity>): Long {
+        snapshotId(header.indexCode, header.snapshotDate)?.let { deleteSnapshot(it) }
         val id = insertSnapshot(header)
         insertConstituents(rows.map { it.copy(snapshotId = id) })
         return id
@@ -118,6 +123,7 @@ interface WatchlistDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertItem(entity: WatchlistItemEntity)
     @Delete suspend fun deleteItem(entity: WatchlistItemEntity)
     @Delete suspend fun deleteList(entity: WatchlistEntity)
+    @Query("SELECT DISTINCT symbol FROM watchlist_items ORDER BY symbol") suspend fun allSymbols(): List<String>
 }
 
 @Dao
@@ -152,5 +158,7 @@ interface FundamentalDao {
 interface DiagnosticsDao {
     @Query("SELECT * FROM provider_status ORDER BY providerId, capability")
     fun observeProviderStatus(): Flow<List<ProviderStatusEntity>>
+    @Query("SELECT * FROM provider_status WHERE providerId = :providerId AND capability = :capability")
+    suspend fun get(providerId: String, capability: String): ProviderStatusEntity?
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(entity: ProviderStatusEntity)
 }

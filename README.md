@@ -17,6 +17,9 @@ does not place broker orders and does not require an account or a server.
 - Deterministic cash-only and optional full rebalance engines with cash reserve,
   minimum-trade, exclusion, no-sell and maximum-weight constraints.
 - Local DataStore preferences and manual security/price support.
+- Isolated PSX parsers/providers for index constituents, company quotes and EOD
+  history, with validation, atomic caching, partial-failure summaries and optional
+  once-daily WorkManager refresh.
 - Unit coverage for accounting and rebalancing edge cases plus Android CI.
 
 The manual ledger and deterministic calculation layer work independently of
@@ -42,3 +45,6 @@ preserved rather than overwritten.
 
 See [the accounting and storage contract](docs/ACCOUNTING_AND_STORAGE.md) for the
 exact cost-basis and migration rules.
+
+See [market data and offline behaviour](docs/MARKET_DATA.md) for provider,
+validation, caching and responsible-refresh details.
