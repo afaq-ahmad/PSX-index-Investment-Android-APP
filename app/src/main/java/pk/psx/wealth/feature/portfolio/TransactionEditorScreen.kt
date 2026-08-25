@@ -51,7 +51,13 @@ fun TransactionEditorScreen(
 
     LaunchedEffect(state.initialType, state.existing?.id) {
         type = state.existing?.type ?: state.initialType
-        state.existing?.let { existing ->
+        val existing = state.existing
+        if (existing == null) {
+            symbol = state.initialSymbol
+            quantity = state.initialQuantity
+            price = state.initialPrice
+            cashAmount = state.initialCashAmount
+        } else {
             date = existing.tradeDate.toString()
             symbol = existing.symbol.orEmpty()
             quantity = existing.quantity.formValue()

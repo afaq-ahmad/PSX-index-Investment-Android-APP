@@ -40,7 +40,7 @@ fun TargetScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var initializedFor by remember { mutableStateOf<Long?>(null) }
-    var mode by remember { mutableStateOf(TargetMode.CUSTOM) }
+    var mode by remember { mutableStateOf(TargetMode.INDEX_WEIGHT) }
     var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
     var custom by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var cashTarget by remember { mutableStateOf("0") }

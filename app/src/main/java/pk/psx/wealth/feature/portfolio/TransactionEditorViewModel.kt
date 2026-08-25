@@ -19,6 +19,10 @@ import javax.inject.Inject
 data class TransactionEditorState(
     val existing: PortfolioTransaction? = null,
     val initialType: TransactionType = TransactionType.BUY,
+    val initialSymbol: String = "",
+    val initialQuantity: String = "",
+    val initialPrice: String = "",
+    val initialCashAmount: String = "",
     val saving: Boolean = false,
     val saved: Boolean = false,
     val error: String? = null,
@@ -47,7 +51,13 @@ class TransactionEditorViewModel @Inject constructor(
     private val transactionId = savedStateHandle.get<String>("id")?.toLongOrNull() ?: 0L
     private val requestedType = savedStateHandle.get<String>("type")
         ?.let { runCatching { TransactionType.valueOf(it) }.getOrNull() } ?: TransactionType.BUY
-    private val _state = MutableStateFlow(TransactionEditorState(initialType = requestedType))
+    private val _state = MutableStateFlow(TransactionEditorState(
+        initialType = requestedType,
+        initialSymbol = savedStateHandle.get<String>("symbol").orEmpty().trim().uppercase(),
+        initialQuantity = savedStateHandle.get<String>("quantity").orEmpty(),
+        initialPrice = savedStateHandle.get<String>("price").orEmpty(),
+        initialCashAmount = savedStateHandle.get<String>("cash").orEmpty(),
+    ))
     val state: StateFlow<TransactionEditorState> = _state.asStateFlow()
 
     init {

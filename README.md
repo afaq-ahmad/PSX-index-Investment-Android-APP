@@ -24,6 +24,9 @@ does not place broker orders and does not require an account or a server.
 - Complete local portfolio workflow: dynamic transaction forms, derived holdings,
   manual prices, target strategies, cash-only/full rebalance previews, saved plans
   and confirmation of actual executions before ledger mutation.
+- A first-class Index Plan flow: choose capital and KMI30/KSE100/KMIALLSHR, load
+  published stock weights, compare current versus target whole shares, and record
+  explicit green buy/red sell gaps through prefilled ledger entries.
 - Research workspace with index/sector comparison and recomposition, dated wealth
   history, XIRR, dividend analytics, stock price charts, offline watchlists, manual
   fundamentals, explainable sector-aware scoring and a cache-only screener.
@@ -65,6 +68,9 @@ validation, caching and responsible-refresh details.
 
 See [portfolio and rebalancing workflow](docs/PORTFOLIO_AND_REBALANCING.md) for
 target strategies and the plan-versus-execution safety contract.
+
+See [the index investing workflow](docs/INDEX_INVESTING_WORKFLOW.md) for the
+amount-to-index-to-shares experience and its rounding and ledger rules.
 
 See [analytics and research](docs/ANALYTICS_AND_RESEARCH.md) for return, dividend,
 fundamental-confidence and cache-only screening rules.
