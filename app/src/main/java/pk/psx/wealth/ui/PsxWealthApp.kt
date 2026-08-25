@@ -1,20 +1,27 @@
 package pk.psx.wealth.ui
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
-import androidx.compose.material.icons.filled.Balance
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
@@ -45,6 +52,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import pk.psx.wealth.feature.app.AppViewModel
 import pk.psx.wealth.feature.home.HomeScreen
+import pk.psx.wealth.feature.indexplan.IndexPlanScreen
 import pk.psx.wealth.feature.more.MoreScreen
 import pk.psx.wealth.feature.portfolio.ManualPriceScreen
 import pk.psx.wealth.feature.portfolio.PortfolioScreen
@@ -61,15 +69,23 @@ object Routes {
     const val HOME = "home"
     const val PORTFOLIO = "portfolio"
     const val RESEARCH = "research"
+    const val INDEX_PLAN = "index-plan"
     const val REBALANCE = "rebalance"
     const val MORE = "more"
-    const val TRANSACTION = "transaction?type={type}&id={id}"
+    const val TRANSACTION = "transaction?type={type}&id={id}&symbol={symbol}&quantity={quantity}&price={price}&cash={cash}"
     const val MANUAL_PRICE = "manual-price"
     const val TARGETS = "targets"
     const val EXECUTE_PLAN = "execute/{planId}"
     const val STOCK = "stock/{symbol}"
 
-    fun transaction(type: String, id: Long = 0) = "transaction?type=$type&id=$id"
+    fun transaction(
+        type: String,
+        id: Long = 0,
+        symbol: String = "",
+        quantity: String = "",
+        price: String = "",
+        cash: String = "",
+    ) = "transaction?type=$type&id=$id&symbol=$symbol&quantity=$quantity&price=$price&cash=$cash"
     fun execute(planId: Long) = "execute/$planId"
     fun stock(symbol: String) = "stock/${symbol.trim().uppercase()}"
 }
@@ -77,9 +93,9 @@ object Routes {
 private data class BottomDestination(val route: String, val label: String, val icon: ImageVector)
 private val bottomDestinations = listOf(
     BottomDestination(Routes.HOME, "Home", Icons.Default.Home),
+    BottomDestination(Routes.INDEX_PLAN, "Index Plan", Icons.Default.PieChart),
     BottomDestination(Routes.PORTFOLIO, "Portfolio", Icons.Default.AccountBalanceWallet),
     BottomDestination(Routes.RESEARCH, "Research", Icons.Default.Search),
-    BottomDestination(Routes.REBALANCE, "Rebalance", Icons.Default.Balance),
     BottomDestination(Routes.MORE, "More", Icons.Default.MoreHoriz),
 )
 
@@ -138,7 +154,7 @@ private fun PsxWealthContent(viewModel: AppViewModel, securityViewModel: Securit
                         onAddDeposit = { navController.navigate(Routes.transaction("CASH_DEPOSIT")) },
                         onAddBuy = { navController.navigate(Routes.transaction("BUY")) },
                         onAddDividend = { navController.navigate(Routes.transaction("DIVIDEND")) },
-                        onRebalance = { navController.navigate(Routes.REBALANCE) },
+                        onRebalance = { navController.navigate(Routes.INDEX_PLAN) },
                         onCreatePortfolio = { showCreate = true },
                     )
                 }
@@ -153,6 +169,19 @@ private fun PsxWealthContent(viewModel: AppViewModel, securityViewModel: Securit
                 }
                 composable(Routes.RESEARCH) {
                     ResearchScreen(onOpenStock = { navController.navigate(Routes.stock(it)) })
+                }
+                composable(Routes.INDEX_PLAN) {
+                    IndexPlanScreen(
+                        onRecordFunds = { amount ->
+                            navController.navigate(Routes.transaction("CASH_DEPOSIT", cash = amount))
+                        },
+                        onRecordTrade = { type, symbol, quantity, price ->
+                            navController.navigate(
+                                Routes.transaction(type.name, symbol = symbol, quantity = quantity, price = price),
+                            )
+                        },
+                        onAdvancedRebalance = { navController.navigate(Routes.REBALANCE) },
+                    )
                 }
                 composable(Routes.REBALANCE) {
                     RebalanceScreen(
@@ -174,6 +203,10 @@ private fun PsxWealthContent(viewModel: AppViewModel, securityViewModel: Securit
                     arguments = listOf(
                         navArgument("type") { type = NavType.StringType; defaultValue = "BUY" },
                         navArgument("id") { type = NavType.StringType; defaultValue = "0" },
+                        navArgument("symbol") { type = NavType.StringType; defaultValue = "" },
+                        navArgument("quantity") { type = NavType.StringType; defaultValue = "" },
+                        navArgument("price") { type = NavType.StringType; defaultValue = "" },
+                        navArgument("cash") { type = NavType.StringType; defaultValue = "" },
                     ),
                 ) { TransactionEditorScreen(onFinished = { navController.popBackStack() }) }
                 composable(Routes.MANUAL_PRICE) { ManualPriceScreen(onFinished = { navController.popBackStack() }) }
@@ -209,9 +242,22 @@ private fun CreatePortfolioDialog(
         onDismissRequest = { if (canDismiss) onDismiss() },
         title = { Text("Create local portfolio") },
         text = {
-            androidx.compose.foundation.layout.Column {
-                OutlinedTextField(name, { name = it }, label = { Text("Portfolio name") })
-                OutlinedTextField(benchmark, { benchmark = it.uppercase() }, label = { Text("Benchmark: KMI30, KSE100 or KMIALLSHR") })
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(name, { name = it }, label = { Text("Portfolio name") }, modifier = Modifier.fillMaxWidth())
+                Text("Index to follow")
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    listOf("KMI30", "KSE100", "KMIALLSHR").forEach { code ->
+                        FilterChip(
+                            selected = benchmark == code,
+                            onClick = { benchmark = code },
+                            label = { Text(code) },
+                        )
+                    }
+                }
+                Text("You can compare or switch the saved index later from Index Plan.")
             }
         },
         confirmButton = { Button(onClick = { onCreate(name, benchmark) }, enabled = name.isNotBlank()) { Text("Create") } },
