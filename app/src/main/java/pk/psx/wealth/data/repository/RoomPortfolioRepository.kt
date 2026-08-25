@@ -52,7 +52,9 @@ class RoomPortfolioRepository @Inject constructor(
     override suspend fun createPortfolio(name: String, benchmark: String): Long {
         val cleanName = name.trim()
         require(cleanName.isNotEmpty()) { "Portfolio name is required" }
-        return portfolioDao.upsert(PortfolioEntity(name = cleanName, benchmark = benchmark.trim().uppercase()))
+        val cleanBenchmark = benchmark.trim().uppercase()
+        require(cleanBenchmark in setOf("KMI30", "KSE100", "KMIALLSHR")) { "Unsupported benchmark" }
+        return portfolioDao.upsert(PortfolioEntity(name = cleanName, benchmark = cleanBenchmark))
     }
 
     override suspend fun updatePortfolio(portfolio: PortfolioEntity) {

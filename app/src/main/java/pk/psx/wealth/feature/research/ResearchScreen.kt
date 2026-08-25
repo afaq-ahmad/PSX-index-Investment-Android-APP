@@ -3,6 +3,7 @@ package pk.psx.wealth.feature.research
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -64,12 +65,14 @@ fun ResearchScreen(
             }
         }
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp)) }
-        when (state.section) {
-            ResearchSection.INDICES -> IndexPane(state, viewModel::selectIndex, onOpenStock)
-            ResearchSection.PERFORMANCE -> PerformancePane(state)
-            ResearchSection.DIVIDENDS -> DividendPane(state, onOpenStock)
-            ResearchSection.SCREENER -> ScreenerPane(state.screenerRows, onOpenStock)
-            ResearchSection.WATCHLISTS -> WatchlistsPane(state, viewModel, onOpenStock)
+        Box(Modifier.weight(1f)) {
+            when (state.section) {
+                ResearchSection.INDICES -> IndexPane(state, viewModel::selectIndex, onOpenStock)
+                ResearchSection.PERFORMANCE -> PerformancePane(state)
+                ResearchSection.DIVIDENDS -> DividendPane(state, onOpenStock)
+                ResearchSection.SCREENER -> ScreenerPane(state.screenerRows, onOpenStock)
+                ResearchSection.WATCHLISTS -> WatchlistsPane(state, viewModel, onOpenStock)
+            }
         }
     }
 }

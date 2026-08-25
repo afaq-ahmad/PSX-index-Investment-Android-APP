@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -107,12 +108,14 @@ fun MoreScreen(
         }
         if (state.busy) Text("Working locally…", modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.primary)
         state.message?.let { Text(it, modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.primary) }
-        when (section) {
-            MoreSection.SETTINGS -> SettingsPane(state, appState, onSelectPortfolio, onCreatePortfolio,
-                { pendingArchive = it }, viewModel, securityViewModel, security, { showPinDialog = true })
-            MoreSection.REPORTS -> ReportsPane(state.busy, viewModel::prepareReport)
-            MoreSection.BACKUP -> BackupPane(state.busy, viewModel::prepareBackup) { openBackup.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }
-            MoreSection.DIAGNOSTICS -> DiagnosticsPane(state)
+        Box(Modifier.weight(1f)) {
+            when (section) {
+                MoreSection.SETTINGS -> SettingsPane(state, appState, onSelectPortfolio, onCreatePortfolio,
+                    { pendingArchive = it }, viewModel, securityViewModel, security, { showPinDialog = true })
+                MoreSection.REPORTS -> ReportsPane(state.busy, viewModel::prepareReport)
+                MoreSection.BACKUP -> BackupPane(state.busy, viewModel::prepareBackup) { openBackup.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }
+                MoreSection.DIAGNOSTICS -> DiagnosticsPane(state)
+            }
         }
     }
 
