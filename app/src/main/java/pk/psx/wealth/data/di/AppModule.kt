@@ -20,9 +20,12 @@ import pk.psx.wealth.data.repository.PortfolioRepository
 import pk.psx.wealth.data.repository.MarketRepository
 import pk.psx.wealth.data.repository.RoomPortfolioRepository
 import pk.psx.wealth.data.repository.RoomMarketRepository
+import pk.psx.wealth.data.repository.RoomStrategyRepository
+import pk.psx.wealth.data.repository.StrategyRepository
 import pk.psx.wealth.domain.MarketDataProvider
 import pk.psx.wealth.domain.PortfolioCalculator
 import pk.psx.wealth.domain.RebalanceEngine
+import pk.psx.wealth.domain.TargetAllocationEngine
 import java.time.Clock
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
@@ -53,6 +56,7 @@ object AppModule {
     @Provides fun diagnosticsDao(db: PsxDatabase) = db.diagnosticsDao()
     @Provides fun portfolioCalculator() = PortfolioCalculator()
     @Provides fun rebalanceEngine() = RebalanceEngine()
+    @Provides fun targetAllocationEngine() = TargetAllocationEngine()
     @Provides @Singleton fun clock(): Clock = Clock.systemDefaultZone()
     @Provides @Singleton fun httpClient(@ApplicationContext context: Context): OkHttpClient =
         OkHttpClient.Builder()
@@ -68,6 +72,7 @@ object AppModule {
 abstract class RepositoryModule {
     @Binds abstract fun portfolioRepository(implementation: RoomPortfolioRepository): PortfolioRepository
     @Binds abstract fun marketRepository(implementation: RoomMarketRepository): MarketRepository
+    @Binds abstract fun strategyRepository(implementation: RoomStrategyRepository): StrategyRepository
 }
 
 @Module

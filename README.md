@@ -20,6 +20,9 @@ does not place broker orders and does not require an account or a server.
 - Isolated PSX parsers/providers for index constituents, company quotes and EOD
   history, with validation, atomic caching, partial-failure summaries and optional
   once-daily WorkManager refresh.
+- Complete local portfolio workflow: dynamic transaction forms, derived holdings,
+  manual prices, target strategies, cash-only/full rebalance previews, saved plans
+  and confirmation of actual executions before ledger mutation.
 - Unit coverage for accounting and rebalancing edge cases plus Android CI.
 
 The manual ledger and deterministic calculation layer work independently of
@@ -48,3 +51,6 @@ exact cost-basis and migration rules.
 
 See [market data and offline behaviour](docs/MARKET_DATA.md) for provider,
 validation, caching and responsible-refresh details.
+
+See [portfolio and rebalancing workflow](docs/PORTFOLIO_AND_REBALANCING.md) for
+target strategies and the plan-versus-execution safety contract.

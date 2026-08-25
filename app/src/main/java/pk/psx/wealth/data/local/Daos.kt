@@ -104,6 +104,8 @@ interface IndexDao {
 interface TargetAllocationDao {
     @Query("SELECT * FROM target_allocations WHERE portfolioId = :portfolioId ORDER BY symbol")
     fun observe(portfolioId: Long): Flow<List<TargetAllocationEntity>>
+    @Query("SELECT * FROM target_allocations WHERE portfolioId = :portfolioId ORDER BY symbol")
+    suspend fun list(portfolioId: Long): List<TargetAllocationEntity>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertAll(entities: List<TargetAllocationEntity>)
     @Query("DELETE FROM target_allocations WHERE portfolioId = :portfolioId") suspend fun deleteForPortfolio(portfolioId: Long)
 
@@ -131,8 +133,11 @@ interface RebalanceDao {
     @Query("SELECT * FROM rebalance_plans WHERE portfolioId = :portfolioId ORDER BY createdAt DESC")
     fun observePlans(portfolioId: Long): Flow<List<RebalancePlanEntity>>
     @Query("SELECT * FROM rebalance_plans WHERE id = :id") suspend fun plan(id: Long): RebalancePlanEntity?
+    @Query("SELECT * FROM rebalance_plans WHERE id = :id") fun observePlan(id: Long): Flow<RebalancePlanEntity?>
     @Query("SELECT * FROM rebalance_plan_items WHERE planId = :planId ORDER BY action, estimatedValue DESC")
     suspend fun items(planId: Long): List<RebalancePlanItemEntity>
+    @Query("SELECT * FROM rebalance_plan_items WHERE planId = :planId ORDER BY action, estimatedValue DESC")
+    fun observeItems(planId: Long): Flow<List<RebalancePlanItemEntity>>
     @Insert suspend fun insertPlan(entity: RebalancePlanEntity): Long
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertItems(entities: List<RebalancePlanItemEntity>)
     @Query("UPDATE rebalance_plans SET status = :status WHERE id = :id") suspend fun setStatus(id: Long, status: String)

@@ -77,6 +77,8 @@ class RoomPortfolioRepository @Inject constructor(
         return transactionDao.upsert(transaction.toEntity(securityId))
     }
 
+    override suspend fun getTransaction(id: Long): PortfolioTransaction? = transactionDao.get(id)?.toDomain()
+
     override suspend fun deleteTransaction(id: Long) = transactionDao.deleteById(id)
 
     override suspend fun upsertSecurity(symbol: String, companyName: String, sector: String?): Long {
