@@ -115,7 +115,7 @@ fun MoreScreen(
                     { pendingArchive = it }, viewModel, securityViewModel, security, { showPinDialog = true })
                 MoreSection.REPORTS -> ReportsPane(state.busy, viewModel::prepareReport)
                 MoreSection.BACKUP -> BackupPane(state.busy, viewModel::prepareBackup) { openBackup.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }
-                MoreSection.DIAGNOSTICS -> DiagnosticsPane(state)
+                MoreSection.DIAGNOSTICS -> DiagnosticsPane(state, viewModel::refreshCounts)
             }
         }
     }
@@ -307,9 +307,49 @@ private fun BackupPane(busy: Boolean, onBackup: (BackupKind) -> Unit, onRestore:
 }
 
 @Composable
-private fun DiagnosticsPane(state: MoreUiState) {
+private fun DiagnosticsPane(state: MoreUiState, onRunChecks: () -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Data and diagnostics", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Local data health", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                LabelValue("Status", state.health.status.label(), healthStatusColor(state.health.status))
+                LabelValue("Errors", state.health.errorCount.toString())
+                LabelValue("Warnings", state.health.warningCount.toString())
+                LabelValue(
+                    "Last checked",
+                    state.health.checkedAt?.atZone(ZoneId.systemDefault())?.toLocalDateTime()?.toString() ?: "Not checked",
+                )
+                OutlinedButton(onClick = onRunChecks, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
+                    Text("Run local checks")
+                }
+                Text(
+                    "Checks are read-only and run entirely on this device. They never change a transaction or upload portfolio data.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+        if (state.health.issues.isEmpty() && state.health.checkedAt != null) {
+            Text(
+                "No ledger, valuation, target, quote or index-cache problems were found.",
+                color = healthStatusColor(pk.psx.wealth.domain.DataHealthStatus.HEALTHY),
+            )
+        }
+        state.health.issues.forEach { issue ->
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(issue.title, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Text(issue.severity.name, color = severityColor(issue.severity), style = MaterialTheme.typography.labelMedium)
+                    }
+                    Text(issue.detail)
+                    if (issue.affectedCount > 0) LabelValue("Affected", issue.affectedCount.toString())
+                    Text(issue.action, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                    if (BuildConfig.DEBUG) Text(issue.code, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+        Text("Local record counts", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 LabelValue("Portfolios", state.counts.portfolios.toString())
@@ -321,6 +361,7 @@ private fun DiagnosticsPane(state: MoreUiState) {
                 LabelValue("Fundamental observations", state.counts.fundamentals.toString())
             }
         }
+        Text("Market provider attempts", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         if (state.diagnostics.isEmpty()) Text("No provider attempts have been recorded yet.")
         state.diagnostics.forEach { status ->
             Card(Modifier.fillMaxWidth()) {
@@ -338,6 +379,26 @@ private fun DiagnosticsPane(state: MoreUiState) {
         if (BuildConfig.DEBUG) Text("Debug: app ${BuildConfig.VERSION_NAME}; Room schema 2. Errors are sanitized and exclude portfolio values.",
             style = MaterialTheme.typography.bodySmall)
     }
+}
+
+private fun pk.psx.wealth.domain.DataHealthStatus.label() = when (this) {
+    pk.psx.wealth.domain.DataHealthStatus.HEALTHY -> "Healthy"
+    pk.psx.wealth.domain.DataHealthStatus.ATTENTION -> "Needs attention"
+    pk.psx.wealth.domain.DataHealthStatus.ERROR -> "Errors found"
+}
+
+@Composable
+private fun healthStatusColor(status: pk.psx.wealth.domain.DataHealthStatus) = when (status) {
+    pk.psx.wealth.domain.DataHealthStatus.HEALTHY -> MaterialTheme.colorScheme.primary
+    pk.psx.wealth.domain.DataHealthStatus.ATTENTION -> MaterialTheme.colorScheme.tertiary
+    pk.psx.wealth.domain.DataHealthStatus.ERROR -> MaterialTheme.colorScheme.error
+}
+
+@Composable
+private fun severityColor(severity: pk.psx.wealth.domain.DataHealthSeverity) = when (severity) {
+    pk.psx.wealth.domain.DataHealthSeverity.ERROR -> MaterialTheme.colorScheme.error
+    pk.psx.wealth.domain.DataHealthSeverity.WARNING -> MaterialTheme.colorScheme.tertiary
+    pk.psx.wealth.domain.DataHealthSeverity.INFO -> MaterialTheme.colorScheme.primary
 }
 
 @Composable

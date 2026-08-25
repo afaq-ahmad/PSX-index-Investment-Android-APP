@@ -20,6 +20,7 @@ The developer-plan MVP checklist is implemented:
 - [x] Operate from Room/DataStore caches when offline and show provenance/freshness.
 - [x] Export an essential or full versioned backup through Android storage.
 - [x] Validate, preview and transactionally restore a backup.
+- [x] Run read-only local data-health checks with actionable diagnostics.
 
 The plan's explicitly later or optional work—PDF reports, automatic corporate-action
 feeds, richer index-level benchmark ingestion and advanced sector datasets—remains
