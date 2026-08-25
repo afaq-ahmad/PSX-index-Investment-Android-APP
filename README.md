@@ -13,7 +13,8 @@ does not place broker orders and does not require an account or a server.
 - Transaction-derived cash, holdings, weighted average cost, realized/unrealized
   gains, fees/taxes, corporate actions, contributions and dividends using
   `BigDecimal` domain calculations.
-- A provider boundary that keeps PSX website parsing separate from calculations.
+- A capability-aware provider boundary with PSX primary data, optional SCS quote
+  fallback, configurable ordering, per-source diagnostics and manual/cache fallback.
 - Deterministic cash-only and optional full rebalance engines with cash reserve,
   minimum-trade, exclusion, no-sell and maximum-weight constraints.
 - Local DataStore preferences and manual security/price support.

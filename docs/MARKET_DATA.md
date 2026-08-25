@@ -6,9 +6,12 @@ server, account, minute-level polling or redistribution feature.
 
 ## Provider boundary
 
-`PsxMarketDataProvider` is the only network-aware implementation. Its parsers are
-separate classes with saved offline fixtures. They normalize responses into domain
-models before a repository validates and writes them to Room.
+Network providers are replaceable and capability-aware. `PsxMarketDataProvider`
+is the primary provider. An optional `ScsMarketDataProvider` supplies quote and
+company-snapshot fallback using the public SCS company snapshot page (including
+the `ContentPlaceHolder1_lbl_price` field commonly used by spreadsheet imports).
+Both providers have separate parsers and saved offline fixtures. They normalize
+responses into domain models before a repository validates and writes them to Room.
 
 Current endpoints:
 
@@ -16,10 +19,25 @@ Current endpoints:
 - `/company/{symbol}` for a latest quote and stock snapshot;
 - `/timeseries/eod/{symbol}` for split-adjusted end-of-day history as described by
   the PSX page itself.
+- `scstrade.com/stockscreening/SS_CompanySnapShot.aspx?symbol={SYMBOL}` for an
+  optional secondary quote/company snapshot.
 
-The owner should review and comply with PSX terms for personal, non-commercial
-use. Refresh is intentionally conservative and the product never resells or
-publishes market data.
+## User-controlled provider policy
+
+More → Settings allows the owner to:
+
+- disable all online market access while retaining manual/cached operation;
+- enable or disable PSX and SCS independently;
+- choose PSX-first or SCS-first quote order;
+- include/exclude held stocks, watchlists and each supported index from Refresh all.
+
+Index constituents and PSX price history remain PSX-only capabilities. Diagnostics
+record each provider attempt separately, so a PSX failure followed by a successful
+SCS fallback is visible and accurately attributed.
+
+The owner should review and comply with each source's terms for personal,
+non-commercial use. Refresh is intentionally conservative and the product never
+resells or publishes market data.
 
 ## Cache safety
 

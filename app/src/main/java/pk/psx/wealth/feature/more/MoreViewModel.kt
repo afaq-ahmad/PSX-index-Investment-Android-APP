@@ -26,6 +26,7 @@ import pk.psx.wealth.data.refresh.MarketRefreshScheduler
 import pk.psx.wealth.data.report.ReportService
 import pk.psx.wealth.data.report.ReportType
 import pk.psx.wealth.feature.common.PortfolioSession
+import pk.psx.wealth.domain.QuoteProviderPreference
 import javax.inject.Inject
 
 data class DataCounts(
@@ -125,13 +126,25 @@ class MoreViewModel @Inject constructor(
     fun setRebalanceMode(value: RebalanceModePreference) = update { it.copy(defaultRebalanceMode = value) }
     fun setRefreshOnOpen(value: Boolean) = update { it.copy(refreshOnOpen = value) }
     fun setDailyRefresh(value: Boolean) = update {
-        scheduler.configureDaily(value, it.wifiOnly)
+        scheduler.configureDaily(value && it.remoteMarketDataEnabled, it.wifiOnly)
         it.copy(dailyRefresh = value)
     }
     fun setWifiOnly(value: Boolean) = update {
-        scheduler.configureDaily(it.dailyRefresh, value)
+        scheduler.configureDaily(it.dailyRefresh && it.remoteMarketDataEnabled, value)
         it.copy(wifiOnly = value)
     }
+    fun setRemoteMarketData(value: Boolean) = update {
+        scheduler.configureDaily(value && it.dailyRefresh, it.wifiOnly)
+        it.copy(remoteMarketDataEnabled = value)
+    }
+    fun setPsxProvider(value: Boolean) = update { it.copy(psxProviderEnabled = value) }
+    fun setScsFallback(value: Boolean) = update { it.copy(scsQuoteFallbackEnabled = value) }
+    fun setQuoteProviderPreference(value: QuoteProviderPreference) = update { it.copy(quoteProviderPreference = value) }
+    fun setRefreshPortfolioQuotes(value: Boolean) = update { it.copy(refreshPortfolioQuotes = value) }
+    fun setRefreshWatchlistQuotes(value: Boolean) = update { it.copy(refreshWatchlistQuotes = value) }
+    fun setRefreshKmi30(value: Boolean) = update { it.copy(refreshKmi30 = value) }
+    fun setRefreshKse100(value: Boolean) = update { it.copy(refreshKse100 = value) }
+    fun setRefreshKmiAllShare(value: Boolean) = update { it.copy(refreshKmiAllShare = value) }
     fun dismissMessage() { operation.value = operation.value.copy(message = null) }
     fun refreshCounts() = viewModelScope.launch { loadCounts() }
 
