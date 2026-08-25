@@ -10,7 +10,8 @@ import javax.inject.Singleton
 data class RefreshSummary(val results: List<RefreshItemResult>) {
     val updated: Int = results.count(RefreshItemResult::success)
     val failed: Int = results.size - updated
-    val message: String = "$updated updated, $failed failed"
+    val message: String = if (failed == 0) "$updated updated" else
+        "$updated updated, $failed failed. Last good cached data remains in use for failed items."
 }
 
 @Singleton

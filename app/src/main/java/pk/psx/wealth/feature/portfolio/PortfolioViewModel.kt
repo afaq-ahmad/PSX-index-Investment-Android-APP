@@ -16,6 +16,7 @@ import pk.psx.wealth.data.local.PortfolioEntity
 import pk.psx.wealth.data.repository.PortfolioRepository
 import pk.psx.wealth.data.repository.StrategyRepository
 import pk.psx.wealth.domain.Holding
+import pk.psx.wealth.domain.MarketQuote
 import pk.psx.wealth.domain.PortfolioSnapshot
 import pk.psx.wealth.domain.PortfolioTransaction
 import pk.psx.wealth.domain.ZERO
@@ -40,6 +41,7 @@ data class PortfolioUiState(
     val snapshot: PortfolioSnapshot? = null,
     val transactions: List<PortfolioTransaction> = emptyList(),
     val targets: Map<String, BigDecimal> = emptyMap(),
+    val quotes: Map<String, MarketQuote> = emptyMap(),
     val rows: List<HoldingRow> = emptyList(),
     val sort: HoldingSort = HoldingSort.VALUE,
     val filter: HoldingFilter = HoldingFilter.ALL,
@@ -58,12 +60,12 @@ class PortfolioViewModel @Inject constructor(
 
     private val selectedData: Flow<PortfolioUiState> = session.selectedPortfolioId.flatMapLatest { id ->
         if (id == null) flowOf(PortfolioUiState()) else combine(
-            repository.observePortfolios(), repository.observeSnapshot(id), repository.observeTransactions(id), strategy.observeTargets(id),
-        ) { portfolios, snapshot, transactions, targets ->
+            repository.observePortfolios(), repository.observeSnapshot(id), repository.observeTransactions(id), strategy.observeTargets(id), repository.observeQuotes(),
+        ) { portfolios, snapshot, transactions, targets, quotes ->
             val rows = snapshot.holdings.map { holding ->
                 HoldingRow(holding, snapshot.portfolioWeight(holding.symbol), targets[holding.symbol])
             }
-            PortfolioUiState(portfolios.firstOrNull { it.id == id }, snapshot, transactions, targets, rows)
+            PortfolioUiState(portfolios.firstOrNull { it.id == id }, snapshot, transactions, targets, quotes.associateBy { it.symbol }, rows)
         }
     }
 

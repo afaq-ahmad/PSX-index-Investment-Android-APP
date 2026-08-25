@@ -181,3 +181,53 @@ interface DiagnosticsDao {
     suspend fun get(providerId: String, capability: String): ProviderStatusEntity?
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(entity: ProviderStatusEntity)
 }
+
+@Dao
+interface BackupDao {
+    @Query("SELECT * FROM portfolios ORDER BY id") suspend fun portfolios(): List<PortfolioEntity>
+    @Query("SELECT * FROM securities ORDER BY id") suspend fun securities(): List<SecurityEntity>
+    @Query("SELECT * FROM transactions ORDER BY id") suspend fun transactions(): List<TransactionEntity>
+    @Query("SELECT * FROM target_allocations ORDER BY portfolioId, symbol") suspend fun targets(): List<TargetAllocationEntity>
+    @Query("SELECT * FROM watchlists ORDER BY id") suspend fun watchlists(): List<WatchlistEntity>
+    @Query("SELECT * FROM watchlist_items ORDER BY watchlistId, symbol") suspend fun watchlistItems(): List<WatchlistItemEntity>
+    @Query("SELECT * FROM fundamental_metrics ORDER BY id") suspend fun fundamentals(): List<FundamentalMetricEntity>
+    @Query("SELECT * FROM rebalance_plans ORDER BY id") suspend fun rebalancePlans(): List<RebalancePlanEntity>
+    @Query("SELECT * FROM rebalance_plan_items ORDER BY planId, symbol, action") suspend fun rebalanceItems(): List<RebalancePlanItemEntity>
+    @Query("SELECT * FROM quotes ORDER BY symbol") suspend fun quotes(): List<LatestQuoteEntity>
+    @Query("SELECT * FROM daily_prices ORDER BY symbol, date") suspend fun prices(): List<DailyPriceEntity>
+    @Query("SELECT * FROM index_definitions ORDER BY code") suspend fun indexDefinitions(): List<IndexDefinitionEntity>
+    @Query("SELECT * FROM index_snapshot_headers ORDER BY id") suspend fun indexSnapshots(): List<IndexSnapshotEntity>
+    @Query("SELECT * FROM index_constituents ORDER BY snapshotId, symbol") suspend fun indexConstituents(): List<IndexConstituentEntity>
+
+    @Query("DELETE FROM rebalance_plan_items") suspend fun clearRebalanceItems()
+    @Query("DELETE FROM rebalance_plans") suspend fun clearRebalancePlans()
+    @Query("DELETE FROM target_allocations") suspend fun clearTargets()
+    @Query("DELETE FROM transactions") suspend fun clearTransactions()
+    @Query("DELETE FROM watchlist_items") suspend fun clearWatchlistItems()
+    @Query("DELETE FROM watchlists") suspend fun clearWatchlists()
+    @Query("DELETE FROM fundamental_metrics") suspend fun clearFundamentals()
+    @Query("DELETE FROM index_constituents") suspend fun clearIndexConstituents()
+    @Query("DELETE FROM index_snapshot_headers") suspend fun clearIndexSnapshots()
+    @Query("DELETE FROM index_snapshots") suspend fun clearLegacyIndexSnapshots()
+    @Query("DELETE FROM quotes") suspend fun clearQuotes()
+    @Query("DELETE FROM daily_prices") suspend fun clearPrices()
+    @Query("DELETE FROM provider_status") suspend fun clearProviderStatus()
+    @Query("DELETE FROM index_definitions") suspend fun clearIndexDefinitions()
+    @Query("DELETE FROM securities") suspend fun clearSecurities()
+    @Query("DELETE FROM portfolios") suspend fun clearPortfolios()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertPortfolios(rows: List<PortfolioEntity>)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertSecurities(rows: List<SecurityEntity>)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertTransactions(rows: List<TransactionEntity>)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertTargets(rows: List<TargetAllocationEntity>)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertWatchlists(rows: List<WatchlistEntity>)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertWatchlistItems(rows: List<WatchlistItemEntity>)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertFundamentals(rows: List<FundamentalMetricEntity>)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertRebalancePlans(rows: List<RebalancePlanEntity>)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertRebalanceItems(rows: List<RebalancePlanItemEntity>)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertQuotes(rows: List<LatestQuoteEntity>)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertPrices(rows: List<DailyPriceEntity>)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertIndexDefinitions(rows: List<IndexDefinitionEntity>)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertIndexSnapshots(rows: List<IndexSnapshotEntity>)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertIndexConstituents(rows: List<IndexConstituentEntity>)
+}

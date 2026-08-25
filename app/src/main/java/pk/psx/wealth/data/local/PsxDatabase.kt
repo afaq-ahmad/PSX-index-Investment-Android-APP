@@ -37,4 +37,5 @@ abstract class PsxDatabase : RoomDatabase() {
     abstract fun rebalanceDao(): RebalanceDao
     abstract fun fundamentalDao(): FundamentalDao
     abstract fun diagnosticsDao(): DiagnosticsDao
+    abstract fun backupDao(): BackupDao
 }

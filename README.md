@@ -26,6 +26,9 @@ does not place broker orders and does not require an account or a server.
 - Research workspace with index/sector comparison and recomposition, dated wealth
   history, XIRR, dividend analytics, stock price charts, offline watchlists, manual
   fundamentals, explainable sector-aware scoring and a cache-only screener.
+- Nine on-device CSV reports, versioned essential/full ZIP backups with validated
+  transactional restore, provider diagnostics, persistent display/data/portfolio
+  settings, and optional Keystore-backed PIN/device authentication and screen privacy.
 - Unit coverage for accounting and rebalancing edge cases plus Android CI.
 
 The manual ledger and deterministic calculation layer work independently of
@@ -60,3 +63,7 @@ target strategies and the plan-versus-execution safety contract.
 
 See [analytics and research](docs/ANALYTICS_AND_RESEARCH.md) for return, dividend,
 fundamental-confidence and cache-only screening rules.
+
+See [reports, backup and local security](docs/REPORTS_BACKUP_SECURITY.md) for export,
+restore validation and device-protection details, and [MVP status](docs/MVP_STATUS.md)
+for the plan checklist.

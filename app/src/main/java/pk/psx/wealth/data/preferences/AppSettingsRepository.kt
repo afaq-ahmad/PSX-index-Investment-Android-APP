@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -31,6 +32,9 @@ data class AppSettings(
     val dailyRefresh: Boolean = false,
     val wifiOnly: Boolean = false,
     val privacyScreen: Boolean = false,
+    val pinVerifier: String? = null,
+    val biometricEnabled: Boolean = false,
+    val autoLockMinutes: Int = 5,
 )
 
 @Singleton
@@ -52,6 +56,9 @@ class AppSettingsRepository @Inject constructor(@ApplicationContext context: Con
             dailyRefresh = values[Keys.dailyRefresh] ?: false,
             wifiOnly = values[Keys.wifiOnly] ?: false,
             privacyScreen = values[Keys.privacyScreen] ?: false,
+            pinVerifier = values[Keys.pinVerifier],
+            biometricEnabled = values[Keys.biometricEnabled] ?: false,
+            autoLockMinutes = values[Keys.autoLockMinutes] ?: 5,
         )
     }
 
@@ -71,6 +78,9 @@ class AppSettingsRepository @Inject constructor(@ApplicationContext context: Con
                 dailyRefresh = values[Keys.dailyRefresh] ?: false,
                 wifiOnly = values[Keys.wifiOnly] ?: false,
                 privacyScreen = values[Keys.privacyScreen] ?: false,
+                pinVerifier = values[Keys.pinVerifier],
+                biometricEnabled = values[Keys.biometricEnabled] ?: false,
+                autoLockMinutes = values[Keys.autoLockMinutes] ?: 5,
             )
             val next = transform(current)
             values[Keys.theme] = next.theme.name
@@ -84,6 +94,9 @@ class AppSettingsRepository @Inject constructor(@ApplicationContext context: Con
             values[Keys.dailyRefresh] = next.dailyRefresh
             values[Keys.wifiOnly] = next.wifiOnly
             values[Keys.privacyScreen] = next.privacyScreen
+            next.pinVerifier?.let { values[Keys.pinVerifier] = it } ?: values.remove(Keys.pinVerifier)
+            values[Keys.biometricEnabled] = next.biometricEnabled
+            values[Keys.autoLockMinutes] = next.autoLockMinutes.coerceIn(1, 120)
         }
     }
 
@@ -99,6 +112,9 @@ class AppSettingsRepository @Inject constructor(@ApplicationContext context: Con
         val dailyRefresh = booleanPreferencesKey("daily_refresh")
         val wifiOnly = booleanPreferencesKey("wifi_only")
         val privacyScreen = booleanPreferencesKey("privacy_screen")
+        val pinVerifier = stringPreferencesKey("pin_verifier")
+        val biometricEnabled = booleanPreferencesKey("biometric_enabled")
+        val autoLockMinutes = intPreferencesKey("auto_lock_minutes")
     }
 }
 

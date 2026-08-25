@@ -56,6 +56,7 @@ object AppModule {
     @Provides fun rebalanceDao(db: PsxDatabase) = db.rebalanceDao()
     @Provides fun fundamentalDao(db: PsxDatabase) = db.fundamentalDao()
     @Provides fun diagnosticsDao(db: PsxDatabase) = db.diagnosticsDao()
+    @Provides fun backupDao(db: PsxDatabase) = db.backupDao()
     @Provides fun portfolioCalculator() = PortfolioCalculator()
     @Provides fun rebalanceEngine() = RebalanceEngine()
     @Provides fun targetAllocationEngine() = TargetAllocationEngine()

@@ -303,7 +303,7 @@ private fun ScreenerPane(rows: List<ScreenerRow>, onOpenStock: (String) -> Unit)
                         }
                         Text(row.score.score.scoreText())
                     }
-                    LabelValue("Price", row.quote?.price?.toBigDecimal()?.let(::pkr) ?: "—")
+                    LabelValue("Price", row.quote?.price?.toBigDecimal()?.let { pkr(it) } ?: "—")
                     LabelValue("P/E", row.metric("PE")?.stripTrailingZeros()?.toPlainString() ?: "—")
                     LabelValue("Dividend yield", percentValue(row.metric("DIVIDEND_YIELD")))
                     LabelValue("ROE", percentValue(row.metric("ROE")))
@@ -360,7 +360,7 @@ private fun WatchlistCard(
                 Column(Modifier.fillMaxWidth().clickable { onOpenStock(item.symbol) }.padding(vertical = 4.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(item.symbol, fontWeight = FontWeight.Bold)
-                        Text(row?.quote?.price?.toBigDecimal()?.let(::pkr) ?: "—")
+                        Text(row?.quote?.price?.toBigDecimal()?.let { pkr(it) } ?: "—")
                     }
                     item.notes?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                     Text("Score ${row?.score?.score.scoreText()} · P/E ${row?.metric("PE") ?: "—"}", style = MaterialTheme.typography.bodySmall)
