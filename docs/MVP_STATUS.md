@@ -15,6 +15,8 @@ The developer-plan MVP checklist is implemented:
 - [x] Preview and save plans without changing the ledger.
 - [x] Convert only confirmed actual executions into atomic ledger transactions.
 - [x] Show wealth decomposition, XIRR, dividends and long-term local charts.
+- [x] Download index-level history on demand and simulate contribution-matched
+  portfolio-versus-benchmark value, XIRR and chart periods.
 - [x] Operate from Room/DataStore caches when offline and show provenance/freshness.
 - [x] Export an essential or full versioned backup through Android storage.
 - [x] Validate, preview and transactionally restore a backup.

@@ -32,6 +32,11 @@ data class ValuationPeriod(
 
 data class IndexLevel(val date: LocalDate, val level: BigDecimal)
 data class BenchmarkSimulation(val terminalValue: BigDecimal, val investedUnits: BigDecimal)
+data class BenchmarkPoint(
+    val date: LocalDate,
+    val value: BigDecimal,
+    val netContributions: BigDecimal,
+)
 
 class PerformanceEngine @Inject constructor(private val calculator: PortfolioCalculator) {
     fun summary(snapshot: PortfolioSnapshot, transactions: List<PortfolioTransaction>, asOf: LocalDate): PerformanceSummary {
@@ -140,6 +145,7 @@ class PerformanceEngine @Inject constructor(private val calculator: PortfolioCal
         if (sortedLevels.isEmpty()) return null
         fun levelAt(date: LocalDate) = sortedLevels.lastOrNull { !it.date.isAfter(date) }?.level
         var units = ZERO
+        var hasExternalFlow = false
         transactions.filter { !it.tradeDate.isAfter(asOf) }.sortedBy(PortfolioTransaction::tradeDate).forEach { transaction ->
             val amount = transaction.cashAmount ?: transaction.grossAmount
                 ?: transaction.quantity.multiply(transaction.price)
@@ -148,11 +154,72 @@ class PerformanceEngine @Inject constructor(private val calculator: PortfolioCal
                 TransactionType.CASH_WITHDRAWAL -> amount.negate()
                 else -> return@forEach
             }
+            hasExternalFlow = true
             val level = levelAt(transaction.tradeDate) ?: return null
             units = units.add(signed.divide(level, MONEY_CONTEXT))
             if (units.signum() < 0) return null
         }
+        if (!hasExternalFlow) return null
         val terminalLevel = levelAt(asOf) ?: return null
         return BenchmarkSimulation(units.multiply(terminalLevel, MONEY_CONTEXT), units)
+    }
+
+    /**
+     * Replays external contributions into index units and values those units on every cached index date.
+     * A contribution on a non-trading day uses the most recent prior level. No interpolation is invented.
+     */
+    fun benchmarkHistory(
+        transactions: List<PortfolioTransaction>,
+        levels: List<IndexLevel>,
+        asOf: LocalDate,
+    ): List<BenchmarkPoint>? {
+        val sortedLevels = levels.filter { !it.date.isAfter(asOf) && it.level.signum() > 0 }
+            .sortedBy(IndexLevel::date)
+            .distinctBy(IndexLevel::date)
+        val flows = transactions.filter { !it.tradeDate.isAfter(asOf) }.mapNotNull { transaction ->
+            val amount = transaction.cashAmount ?: transaction.grossAmount
+                ?: transaction.quantity.multiply(transaction.price)
+            when (transaction.type) {
+                TransactionType.CASH_DEPOSIT -> Triple(transaction.tradeDate, amount, amount)
+                TransactionType.CASH_WITHDRAWAL -> Triple(transaction.tradeDate, amount.negate(), amount.negate())
+                else -> null
+            }
+        }.sortedBy { it.first }
+        if (sortedLevels.isEmpty() || flows.isEmpty()) return null
+        fun levelAt(date: LocalDate) = sortedLevels.lastOrNull { !it.date.isAfter(date) }?.level
+        if (levelAt(flows.first().first) == null) return null
+
+        var units = ZERO
+        var contributions = ZERO
+        var nextFlow = 0
+        val points = mutableListOf<BenchmarkPoint>()
+        sortedLevels.forEach { level ->
+            while (nextFlow < flows.size && !flows[nextFlow].first.isAfter(level.date)) {
+                val flow = flows[nextFlow]
+                val executionLevel = levelAt(flow.first) ?: return null
+                units = units.add(flow.second.divide(executionLevel, MONEY_CONTEXT))
+                contributions = contributions.add(flow.third)
+                if (units.signum() < 0) return null
+                nextFlow++
+            }
+            if (units.signum() > 0) {
+                points += BenchmarkPoint(level.date, units.multiply(level.level, MONEY_CONTEXT), contributions)
+            }
+        }
+        var appendedTerminalFlow = false
+        while (nextFlow < flows.size && !flows[nextFlow].first.isAfter(asOf)) {
+            val flow = flows[nextFlow]
+            val executionLevel = levelAt(flow.first) ?: return null
+            units = units.add(flow.second.divide(executionLevel, MONEY_CONTEXT))
+            contributions = contributions.add(flow.third)
+            if (units.signum() < 0) return null
+            nextFlow++
+            appendedTerminalFlow = true
+        }
+        if (appendedTerminalFlow && units.signum() > 0) {
+            val terminalLevel = levelAt(asOf) ?: return null
+            points += BenchmarkPoint(asOf, units.multiply(terminalLevel, MONEY_CONTEXT), contributions)
+        }
+        return points.takeIf { it.isNotEmpty() }
     }
 }

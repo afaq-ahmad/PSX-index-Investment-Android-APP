@@ -13,9 +13,13 @@ the most recent prior cached close forward but omits a date if any then-held
 security has no known price. Missing prices are never converted to zero.
 
 A benchmark result is intentionally unavailable until local index-level history
-covers every external-flow date. The domain engine can simulate dated deposits
-and withdrawals as index units when such levels exist; the UI does not show a
-misleading simple-return comparison in their absence.
+covers every external-flow date. From Research → Performance, the owner can
+explicitly download KMI30, KSE100 or KMIALLSHR end-of-day levels from the isolated
+PSX history provider. The domain engine then simulates every dated deposit and
+withdrawal as index units, calculates a contribution-matched terminal value/XIRR,
+and draws portfolio-versus-index history for 1Y, 3Y, 5Y or MAX. A non-trading-day
+flow uses the most recent prior close; the app never interpolates or substitutes
+zero. If history does not cover the first contribution, comparison stays unavailable.
 
 ## Dividends
 

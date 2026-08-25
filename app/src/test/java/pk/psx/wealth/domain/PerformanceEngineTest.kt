@@ -72,6 +72,36 @@ class PerformanceEngineTest {
         assertEquals(0, BigDecimal("1800").compareTo(result.terminalValue))
     }
 
+    @Test
+    fun `benchmark history replays deposits and withdrawals without interpolation`() {
+        val transactions = listOf(
+            transaction(TransactionType.CASH_DEPOSIT, LocalDate.of(2026, 1, 3), cash = "1000"),
+            transaction(TransactionType.CASH_DEPOSIT, LocalDate.of(2026, 2, 1), cash = "550"),
+            transaction(TransactionType.CASH_WITHDRAWAL, LocalDate.of(2026, 2, 15), cash = "120"),
+        )
+        val history = requireNotNull(engine.benchmarkHistory(transactions, listOf(
+            IndexLevel(LocalDate.of(2026, 1, 2), BigDecimal("100")),
+            IndexLevel(LocalDate.of(2026, 2, 1), BigDecimal("110")),
+            IndexLevel(LocalDate.of(2026, 2, 14), BigDecimal("120")),
+            IndexLevel(LocalDate.of(2026, 3, 1), BigDecimal("120")),
+        ), LocalDate.of(2026, 3, 1)))
+
+        assertEquals(LocalDate.of(2026, 2, 1), history.first().date)
+        assertEquals(0, BigDecimal("1650").compareTo(history.first().value))
+        assertEquals(0, BigDecimal("1430").compareTo(history.last().netContributions))
+        assertEquals(0, BigDecimal("1680").compareTo(history.last().value))
+    }
+
+    @Test
+    fun `benchmark history is unavailable when levels do not cover the first deposit`() {
+        val result = engine.benchmarkHistory(
+            listOf(transaction(TransactionType.CASH_DEPOSIT, LocalDate.of(2025, 1, 1), cash = "1000")),
+            listOf(IndexLevel(LocalDate.of(2026, 1, 1), BigDecimal("100"))),
+            LocalDate.of(2026, 1, 1),
+        )
+        assertNull(result)
+    }
+
     private fun transaction(
         type: TransactionType,
         date: LocalDate,

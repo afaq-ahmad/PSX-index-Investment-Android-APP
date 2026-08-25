@@ -16,6 +16,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.math.BigDecimal
@@ -35,25 +37,45 @@ fun LongTermLineChart(points: List<ChartPoint>, modifier: Modifier = Modifier) {
     val low = values.minOrNull() ?: 0.0
     val high = values.maxOrNull() ?: low
     val range = (high - low).takeIf { it > 0 } ?: 1.0
-    Canvas(modifier.fillMaxWidth().height(190.dp).padding(vertical = 8.dp)) {
+    val description = "Line chart with ${points.size} observations from ${points.first().date} to ${points.last().date}; " +
+        "value range ${low.toBigDecimal().stripTrailingZeros().toPlainString()} to ${high.toBigDecimal().stripTrailingZeros().toPlainString()}"
+    Canvas(modifier.fillMaxWidth().height(190.dp).padding(vertical = 8.dp).semantics { contentDescription = description }) {
         fun x(index: Int) = if (points.size == 1) size.width / 2 else index * size.width / (points.size - 1)
         fun y(value: BigDecimal) = size.height - ((value.toDouble() - low) / range * size.height).toFloat()
+        repeat(3) { step ->
+            val gridY = size.height * step / 2f
+            drawLine(
+                color = androidx.compose.ui.graphics.Color.Gray.copy(alpha = .22f),
+                start = Offset(0f, gridY),
+                end = Offset(size.width, gridY),
+                strokeWidth = 1f,
+            )
+        }
         fun drawSeries(color: androidx.compose.ui.graphics.Color, value: (ChartPoint) -> BigDecimal?) {
             val path = Path()
             var started = false
+            var hasPath = false
             points.forEachIndexed { index, point ->
-                value(point)?.let { amount ->
+                val amount = value(point)
+                if (amount == null) {
+                    started = false
+                } else {
                     val offset = Offset(x(index), y(amount))
-                    if (!started) { path.moveTo(offset.x, offset.y); started = true } else path.lineTo(offset.x, offset.y)
+                    if (!started) {
+                        path.moveTo(offset.x, offset.y)
+                        started = true
+                        hasPath = true
+                    } else path.lineTo(offset.x, offset.y)
                 }
             }
-            if (started) drawPath(path, color, style = Stroke(width = 4f))
+            if (hasPath) drawPath(path, color, style = Stroke(width = 4f))
         }
         drawSeries(primary) { it.value }
         drawSeries(secondary) { it.comparison }
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(points.first().date.toString(), style = MaterialTheme.typography.labelSmall)
+        Text("${quantity(low.toBigDecimal())} – ${quantity(high.toBigDecimal())}", style = MaterialTheme.typography.labelSmall)
         Text(points.last().date.toString(), style = MaterialTheme.typography.labelSmall)
     }
 }
