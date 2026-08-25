@@ -11,6 +11,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -19,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.math.BigDecimal
 import java.text.DecimalFormat
+import pk.psx.wealth.data.preferences.NumberFormatPreference
 
 @Composable
 fun MetricCard(label: String, value: String, modifier: Modifier = Modifier, supporting: String? = null) {
@@ -51,7 +53,16 @@ fun EmptyState(message: String, icon: ImageVector) {
     }
 }
 
-fun pkr(value: BigDecimal?): String = value?.let { "Rs ${DecimalFormat("#,##0.##").format(it)}" } ?: "—"
+val LocalNumberFormat = staticCompositionLocalOf { NumberFormatPreference.STANDARD }
+
+@Composable
+fun pkr(value: BigDecimal?): String = value?.let {
+    if (LocalNumberFormat.current == NumberFormatPreference.LAKH_CRORE) when {
+        it.abs() >= BigDecimal("10000000") -> "Rs ${DecimalFormat("0.##").format(it.divide(BigDecimal("10000000")))} Cr"
+        it.abs() >= BigDecimal("100000") -> "Rs ${DecimalFormat("0.##").format(it.divide(BigDecimal("100000")))} L"
+        else -> "Rs ${DecimalFormat("#,##0.##").format(it)}"
+    } else "Rs ${DecimalFormat("#,##0.##").format(it)}"
+} ?: "—"
 fun quantity(value: BigDecimal?): String = value?.stripTrailingZeros()?.toPlainString() ?: "—"
 fun percentFraction(value: BigDecimal?): String = value?.multiply(BigDecimal(100))
     ?.let { "${DecimalFormat("0.00").format(it)}%" } ?: "—"

@@ -3,6 +3,7 @@ package pk.psx.wealth.feature.research
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -64,12 +65,14 @@ fun ResearchScreen(
             }
         }
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp)) }
-        when (state.section) {
-            ResearchSection.INDICES -> IndexPane(state, viewModel::selectIndex, onOpenStock)
-            ResearchSection.PERFORMANCE -> PerformancePane(state)
-            ResearchSection.DIVIDENDS -> DividendPane(state, onOpenStock)
-            ResearchSection.SCREENER -> ScreenerPane(state.screenerRows, onOpenStock)
-            ResearchSection.WATCHLISTS -> WatchlistsPane(state, viewModel, onOpenStock)
+        Box(Modifier.weight(1f)) {
+            when (state.section) {
+                ResearchSection.INDICES -> IndexPane(state, viewModel::selectIndex, onOpenStock)
+                ResearchSection.PERFORMANCE -> PerformancePane(state)
+                ResearchSection.DIVIDENDS -> DividendPane(state, onOpenStock)
+                ResearchSection.SCREENER -> ScreenerPane(state.screenerRows, onOpenStock)
+                ResearchSection.WATCHLISTS -> WatchlistsPane(state, viewModel, onOpenStock)
+            }
         }
     }
 }
@@ -303,7 +306,7 @@ private fun ScreenerPane(rows: List<ScreenerRow>, onOpenStock: (String) -> Unit)
                         }
                         Text(row.score.score.scoreText())
                     }
-                    LabelValue("Price", row.quote?.price?.toBigDecimal()?.let(::pkr) ?: "—")
+                    LabelValue("Price", row.quote?.price?.toBigDecimal()?.let { pkr(it) } ?: "—")
                     LabelValue("P/E", row.metric("PE")?.stripTrailingZeros()?.toPlainString() ?: "—")
                     LabelValue("Dividend yield", percentValue(row.metric("DIVIDEND_YIELD")))
                     LabelValue("ROE", percentValue(row.metric("ROE")))
@@ -360,7 +363,7 @@ private fun WatchlistCard(
                 Column(Modifier.fillMaxWidth().clickable { onOpenStock(item.symbol) }.padding(vertical = 4.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(item.symbol, fontWeight = FontWeight.Bold)
-                        Text(row?.quote?.price?.toBigDecimal()?.let(::pkr) ?: "—")
+                        Text(row?.quote?.price?.toBigDecimal()?.let { pkr(it) } ?: "—")
                     }
                     item.notes?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                     Text("Score ${row?.score?.score.scoreText()} · P/E ${row?.metric("PE") ?: "—"}", style = MaterialTheme.typography.bodySmall)

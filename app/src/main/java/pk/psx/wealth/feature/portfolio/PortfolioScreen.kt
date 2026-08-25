@@ -45,6 +45,7 @@ import pk.psx.wealth.ui.design.percentFraction
 import pk.psx.wealth.ui.design.pkr
 import pk.psx.wealth.ui.design.profitColor
 import pk.psx.wealth.ui.design.quantity
+import java.time.ZoneId
 
 @Composable
 fun PortfolioScreen(
@@ -140,6 +141,10 @@ fun PortfolioScreen(
                     }
                     LabelValue("Quantity", quantity(holding.quantity))
                     LabelValue("Market price", pkr(holding.marketPrice))
+                    state.quotes[holding.symbol]?.let { quote ->
+                        val observed = quote.marketTime ?: quote.retrievedAt
+                        LabelValue("Price source", "${quote.source} · ${observed.atZone(ZoneId.systemDefault()).toLocalDateTime()}")
+                    }
                     LabelValue("Average cost", pkr(holding.averageCost))
                     LabelValue("Remaining cost", pkr(holding.remainingCost))
                     LabelValue("Unrealized P/L", pkr(holding.unrealizedProfit), profitColor(holding.unrealizedProfit))

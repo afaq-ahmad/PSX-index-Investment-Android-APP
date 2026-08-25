@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import pk.psx.wealth.data.local.RebalancePlanEntity
+import pk.psx.wealth.data.preferences.AppSettingsRepository
+import pk.psx.wealth.data.preferences.RebalanceModePreference
 import pk.psx.wealth.data.repository.PortfolioRepository
 import pk.psx.wealth.data.repository.RebalancePlanDraft
 import pk.psx.wealth.data.repository.StrategyRepository
@@ -48,14 +50,18 @@ class RebalanceViewModel @Inject constructor(
     private val strategy: StrategyRepository,
     private val engine: RebalanceEngine,
     private val session: PortfolioSession,
+    settings: AppSettingsRepository,
 ) : ViewModel() {
     private val calculation = MutableStateFlow<RebalanceUiState?>(null)
 
     private val data: Flow<RebalanceUiState> = session.selectedPortfolioId.flatMapLatest { id ->
         if (id == null) flowOf(RebalanceUiState()) else combine(
-            portfolios.observeSnapshot(id), strategy.observeTargets(id), portfolios.observeQuotes(), strategy.observePlans(id),
-        ) { snapshot, targets, quotes, plans ->
-            RebalanceUiState(id, snapshot, targets, quotes.associateBy { it.symbol }, plans)
+            portfolios.observeSnapshot(id), strategy.observeTargets(id), portfolios.observeQuotes(), strategy.observePlans(id), settings.settings,
+        ) { snapshot, targets, quotes, plans, preferences ->
+            RebalanceUiState(id, snapshot, targets, quotes.associateBy { it.symbol }, plans,
+                reserve = preferences.defaultCashReserve.toBigDecimal(),
+                minimumTrade = preferences.defaultMinimumTrade.toBigDecimal(),
+                allowSelling = preferences.defaultRebalanceMode == RebalanceModePreference.FULL)
         }
     }
 

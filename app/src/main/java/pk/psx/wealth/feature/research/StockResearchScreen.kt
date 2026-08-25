@@ -68,7 +68,7 @@ fun StockResearchScreen(viewModel: StockResearchViewModel = hiltViewModel()) {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(pkr(state.quote?.price?.toBigDecimal()), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    LabelValue("Change", state.quote?.change?.toBigDecimal()?.let(::pkr) ?: "—",
+                    LabelValue("Change", state.quote?.change?.toBigDecimal()?.let { pkr(it) } ?: "—",
                         profitColor(state.quote?.change?.toBigDecimal()))
                     LabelValue("Change %", percentValue(state.quote?.changePercent?.toBigDecimal()))
                     LabelValue("Volume", state.quote?.volume?.toString() ?: "—")

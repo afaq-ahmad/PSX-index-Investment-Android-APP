@@ -3,6 +3,7 @@ package pk.psx.wealth.ui
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Balance
@@ -33,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavType
@@ -43,6 +45,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import pk.psx.wealth.feature.app.AppViewModel
 import pk.psx.wealth.feature.home.HomeScreen
+import pk.psx.wealth.feature.more.MoreScreen
 import pk.psx.wealth.feature.portfolio.ManualPriceScreen
 import pk.psx.wealth.feature.portfolio.PortfolioScreen
 import pk.psx.wealth.feature.portfolio.TransactionEditorScreen
@@ -51,7 +54,8 @@ import pk.psx.wealth.feature.rebalance.RebalanceScreen
 import pk.psx.wealth.feature.rebalance.TargetScreen
 import pk.psx.wealth.feature.research.ResearchScreen
 import pk.psx.wealth.feature.research.StockResearchScreen
-import pk.psx.wealth.ui.design.EmptyState
+import pk.psx.wealth.feature.security.SecurityGate
+import pk.psx.wealth.feature.security.SecurityViewModel
 
 object Routes {
     const val HOME = "home"
@@ -79,9 +83,18 @@ private val bottomDestinations = listOf(
     BottomDestination(Routes.MORE, "More", Icons.Default.MoreHoriz),
 )
 
+@Composable
+fun PsxWealthApp(
+    viewModel: AppViewModel = hiltViewModel(),
+    securityViewModel: SecurityViewModel = hiltViewModel(),
+) {
+    val security by securityViewModel.state.collectAsStateWithLifecycle()
+    SecurityGate(security, securityViewModel) { PsxWealthContent(viewModel, securityViewModel) }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PsxWealthApp(viewModel: AppViewModel = hiltViewModel()) {
+private fun PsxWealthContent(viewModel: AppViewModel, securityViewModel: SecurityViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navController = rememberNavController()
     val backStack by navController.currentBackStackEntryAsState()
@@ -100,7 +113,7 @@ fun PsxWealthApp(viewModel: AppViewModel = hiltViewModel()) {
             TopAppBar(
                 title = { Text(bottomDestinations.firstOrNull { route.startsWith(it.route) }?.label ?: "PSX Wealth") },
                 actions = {
-                    if (state.refreshing) CircularProgressIndicator()
+                    if (state.refreshing) CircularProgressIndicator(Modifier.size(24.dp))
                     else IconButton(onClick = viewModel::refresh) { Icon(Icons.Default.Refresh, "Refresh cached market data") }
                 },
             )
@@ -148,7 +161,13 @@ fun PsxWealthApp(viewModel: AppViewModel = hiltViewModel()) {
                     )
                 }
                 composable(Routes.MORE) {
-                    EmptyState("Reports, backup, diagnostics and security", Icons.Default.MoreHoriz)
+                    MoreScreen(
+                        appState = state,
+                        onSelectPortfolio = viewModel::selectPortfolio,
+                        onCreatePortfolio = { showCreate = true },
+                        onArchivePortfolio = viewModel::archivePortfolio,
+                        securityViewModel = securityViewModel,
+                    )
                 }
                 composable(
                     Routes.TRANSACTION,
