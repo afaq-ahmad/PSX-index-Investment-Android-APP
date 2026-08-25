@@ -1,0 +1,91 @@
+package pk.psx.wealth.domain
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.math.BigDecimal
+import java.time.Instant
+import java.time.LocalDate
+
+class PerformanceEngineTest {
+    private val engine = PerformanceEngine(PortfolioCalculator())
+
+    @Test
+    fun `xirr uses deposits and terminal value but ignores buys`() {
+        val transactions = listOf(
+            transaction(TransactionType.CASH_DEPOSIT, LocalDate.of(2025, 1, 1), cash = "1000"),
+            transaction(TransactionType.BUY, LocalDate.of(2025, 2, 1), symbol = "FFC", quantity = "5", price = "100"),
+        )
+        val rate = requireNotNull(engine.xirr(transactions, BigDecimal("1100"), LocalDate.of(2026, 1, 1)))
+        assertTrue(rate.subtract(BigDecimal("0.10")).abs() < BigDecimal("0.00001"))
+    }
+
+    @Test
+    fun `xirr is unavailable without both flow signs`() {
+        assertNull(engine.xirr(emptyList(), BigDecimal("100"), LocalDate.of(2026, 1, 1)))
+    }
+
+    @Test
+    fun `xirr respects the timing of repeated contributions`() {
+        val transactions = listOf(
+            transaction(TransactionType.CASH_DEPOSIT, LocalDate.of(2025, 1, 1), cash = "1000"),
+            transaction(TransactionType.CASH_DEPOSIT, LocalDate.of(2025, 7, 2), cash = "1000"),
+        )
+        val rate = requireNotNull(engine.xirr(transactions, BigDecimal("2100"), LocalDate.of(2026, 1, 1)))
+        assertTrue(rate > BigDecimal("0.05"))
+        assertTrue(rate < BigDecimal("0.08"))
+    }
+
+    @Test
+    fun `wealth history waits for a real price instead of treating missing as zero`() {
+        val transactions = listOf(
+            transaction(TransactionType.CASH_DEPOSIT, LocalDate.of(2026, 1, 1), cash = "1000"),
+            transaction(TransactionType.BUY, LocalDate.of(2026, 1, 2), symbol = "FFC", quantity = "2", price = "100"),
+        )
+        val prices = listOf(DailyPrice("FFC", LocalDate.of(2026, 1, 3), close = BigDecimal("110"), source = "fixture", retrievedAt = Instant.EPOCH))
+        val history = engine.wealthHistory(transactions, prices, LocalDate.of(2026, 1, 3))
+        assertEquals(listOf(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 3)), history.map { it.date })
+        assertEquals(0, BigDecimal("1020").compareTo(history.last().value))
+    }
+
+    @Test
+    fun `time weighted return chain links periods`() {
+        val result = requireNotNull(engine.timeWeightedReturn(listOf(
+            ValuationPeriod(BigDecimal("100"), BigDecimal("110")),
+            ValuationPeriod(BigDecimal("110"), BigDecimal("132")),
+        )))
+        assertEquals(0, BigDecimal("0.32").compareTo(result.stripTrailingZeros()))
+    }
+
+    @Test
+    fun `benchmark simulation invests each dated external flow`() {
+        val transactions = listOf(
+            transaction(TransactionType.CASH_DEPOSIT, LocalDate.of(2026, 1, 1), cash = "1000"),
+            transaction(TransactionType.CASH_DEPOSIT, LocalDate.of(2026, 2, 1), cash = "550"),
+        )
+        val result = requireNotNull(engine.simulateBenchmark(transactions, listOf(
+            IndexLevel(LocalDate.of(2026, 1, 1), BigDecimal("100")),
+            IndexLevel(LocalDate.of(2026, 2, 1), BigDecimal("110")),
+            IndexLevel(LocalDate.of(2026, 3, 1), BigDecimal("120")),
+        ), LocalDate.of(2026, 3, 1)))
+        assertEquals(0, BigDecimal("1800").compareTo(result.terminalValue))
+    }
+
+    private fun transaction(
+        type: TransactionType,
+        date: LocalDate,
+        symbol: String? = null,
+        quantity: String = "0",
+        price: String = "0",
+        cash: String? = null,
+    ) = PortfolioTransaction(
+        portfolioId = 1,
+        type = type,
+        tradeDate = date,
+        symbol = symbol,
+        quantity = BigDecimal(quantity),
+        price = BigDecimal(price),
+        cashAmount = cash?.let(::BigDecimal),
+    )
+}
