@@ -23,6 +23,9 @@ does not place broker orders and does not require an account or a server.
 - Complete local portfolio workflow: dynamic transaction forms, derived holdings,
   manual prices, target strategies, cash-only/full rebalance previews, saved plans
   and confirmation of actual executions before ledger mutation.
+- Research workspace with index/sector comparison and recomposition, dated wealth
+  history, XIRR, dividend analytics, stock price charts, offline watchlists, manual
+  fundamentals, explainable sector-aware scoring and a cache-only screener.
 - Unit coverage for accounting and rebalancing edge cases plus Android CI.
 
 The manual ledger and deterministic calculation layer work independently of
@@ -54,3 +57,6 @@ validation, caching and responsible-refresh details.
 
 See [portfolio and rebalancing workflow](docs/PORTFOLIO_AND_REBALANCING.md) for
 target strategies and the plan-versus-execution safety contract.
+
+See [analytics and research](docs/ANALYTICS_AND_RESEARCH.md) for return, dividend,
+fundamental-confidence and cache-only screening rules.

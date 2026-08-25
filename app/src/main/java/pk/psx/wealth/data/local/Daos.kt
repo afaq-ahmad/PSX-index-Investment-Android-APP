@@ -66,6 +66,8 @@ interface QuoteDao {
 interface PriceDao {
     @Query("SELECT * FROM daily_prices WHERE symbol = :symbol AND date BETWEEN :from AND :to ORDER BY date")
     fun observe(symbol: String, from: String, to: String): Flow<List<DailyPriceEntity>>
+    @Query("SELECT * FROM daily_prices ORDER BY date, symbol")
+    fun observeAll(): Flow<List<DailyPriceEntity>>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertAll(entities: List<DailyPriceEntity>)
     @Query("SELECT COUNT(*) FROM daily_prices") suspend fun count(): Int
 }
@@ -81,10 +83,14 @@ interface IndexDao {
     suspend fun snapshotId(code: String, date: String): Long?
     @Query("SELECT * FROM index_snapshot_headers WHERE indexCode = :code ORDER BY snapshotDate DESC, retrievedAt DESC")
     suspend fun snapshots(code: String): List<IndexSnapshotEntity>
+    @Query("SELECT * FROM index_snapshot_headers ORDER BY indexCode, snapshotDate DESC, retrievedAt DESC")
+    fun observeAllSnapshots(): Flow<List<IndexSnapshotEntity>>
     @Query("SELECT * FROM index_constituents WHERE snapshotId = :snapshotId ORDER BY weightPercent DESC, symbol")
     fun observeConstituents(snapshotId: Long): Flow<List<IndexConstituentEntity>>
     @Query("SELECT * FROM index_constituents WHERE snapshotId = :snapshotId ORDER BY weightPercent DESC, symbol")
     suspend fun constituents(snapshotId: Long): List<IndexConstituentEntity>
+    @Query("SELECT * FROM index_constituents ORDER BY snapshotId, weightPercent DESC, symbol")
+    fun observeAllConstituents(): Flow<List<IndexConstituentEntity>>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertDefinition(entity: IndexDefinitionEntity)
     @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertSnapshot(entity: IndexSnapshotEntity): Long
     @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertConstituents(entities: List<IndexConstituentEntity>)
@@ -121,10 +127,15 @@ interface WatchlistDao {
     @Query("SELECT * FROM watchlists ORDER BY name") fun observeLists(): Flow<List<WatchlistEntity>>
     @Query("SELECT * FROM watchlist_items WHERE watchlistId = :watchlistId ORDER BY symbol")
     fun observeItems(watchlistId: Long): Flow<List<WatchlistItemEntity>>
+    @Query("SELECT * FROM watchlist_items ORDER BY watchlistId, symbol")
+    fun observeAllItems(): Flow<List<WatchlistItemEntity>>
     @Upsert suspend fun upsertList(entity: WatchlistEntity): Long
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertItem(entity: WatchlistItemEntity)
     @Delete suspend fun deleteItem(entity: WatchlistItemEntity)
     @Delete suspend fun deleteList(entity: WatchlistEntity)
+    @Query("DELETE FROM watchlists WHERE id = :id") suspend fun deleteListById(id: Long)
+    @Query("DELETE FROM watchlist_items WHERE watchlistId = :watchlistId AND symbol = :symbol")
+    suspend fun removeItem(watchlistId: Long, symbol: String)
     @Query("SELECT DISTINCT symbol FROM watchlist_items ORDER BY symbol") suspend fun allSymbols(): List<String>
 }
 
@@ -156,7 +167,10 @@ interface FundamentalDao {
     fun observe(symbol: String): Flow<List<FundamentalMetricEntity>>
     @Query("SELECT * FROM fundamental_metrics ORDER BY symbol, periodEnd DESC, metricCode")
     fun observeAll(): Flow<List<FundamentalMetricEntity>>
+    @Query("SELECT * FROM fundamental_metrics WHERE symbol = :symbol AND metricCode = :metricCode AND periodEnd = :periodEnd LIMIT 1")
+    suspend fun find(symbol: String, metricCode: String, periodEnd: String): FundamentalMetricEntity?
     @Upsert suspend fun upsert(entity: FundamentalMetricEntity): Long
+    @Query("DELETE FROM fundamental_metrics WHERE id = :id") suspend fun deleteById(id: Long)
 }
 
 @Dao

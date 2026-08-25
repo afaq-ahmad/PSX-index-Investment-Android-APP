@@ -49,6 +49,8 @@ import pk.psx.wealth.feature.portfolio.TransactionEditorScreen
 import pk.psx.wealth.feature.rebalance.ExecutePlanScreen
 import pk.psx.wealth.feature.rebalance.RebalanceScreen
 import pk.psx.wealth.feature.rebalance.TargetScreen
+import pk.psx.wealth.feature.research.ResearchScreen
+import pk.psx.wealth.feature.research.StockResearchScreen
 import pk.psx.wealth.ui.design.EmptyState
 
 object Routes {
@@ -61,9 +63,11 @@ object Routes {
     const val MANUAL_PRICE = "manual-price"
     const val TARGETS = "targets"
     const val EXECUTE_PLAN = "execute/{planId}"
+    const val STOCK = "stock/{symbol}"
 
     fun transaction(type: String, id: Long = 0) = "transaction?type=$type&id=$id"
     fun execute(planId: Long) = "execute/$planId"
+    fun stock(symbol: String) = "stock/${symbol.trim().uppercase()}"
 }
 
 private data class BottomDestination(val route: String, val label: String, val icon: ImageVector)
@@ -131,10 +135,11 @@ fun PsxWealthApp(viewModel: AppViewModel = hiltViewModel()) {
                         onEditTransaction = { type, id -> navController.navigate(Routes.transaction(type.name, id)) },
                         onManualPrice = { navController.navigate(Routes.MANUAL_PRICE) },
                         onTargets = { navController.navigate(Routes.TARGETS) },
+                        onOpenStock = { navController.navigate(Routes.stock(it)) },
                     )
                 }
                 composable(Routes.RESEARCH) {
-                    EmptyState("Index explorer and research tools are available in the next stacked milestone", Icons.Default.Search)
+                    ResearchScreen(onOpenStock = { navController.navigate(Routes.stock(it)) })
                 }
                 composable(Routes.REBALANCE) {
                     RebalanceScreen(
@@ -158,6 +163,10 @@ fun PsxWealthApp(viewModel: AppViewModel = hiltViewModel()) {
                     Routes.EXECUTE_PLAN,
                     arguments = listOf(navArgument("planId") { type = NavType.StringType }),
                 ) { ExecutePlanScreen(onFinished = { navController.popBackStack() }) }
+                composable(
+                    Routes.STOCK,
+                    arguments = listOf(navArgument("symbol") { type = NavType.StringType }),
+                ) { StockResearchScreen() }
             }
         }
     }

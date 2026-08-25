@@ -1,6 +1,7 @@
 package pk.psx.wealth.feature.portfolio
 
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -51,6 +52,7 @@ fun PortfolioScreen(
     onEditTransaction: (TransactionType, Long) -> Unit,
     onManualPrice: () -> Unit,
     onTargets: () -> Unit,
+    onOpenStock: (String) -> Unit,
     viewModel: PortfolioViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -130,7 +132,7 @@ fun PortfolioScreen(
         }
         items(state.rows, key = { it.holding.symbol }) { row ->
             val holding = row.holding
-            Card(Modifier.fillMaxWidth()) {
+            Card(Modifier.fillMaxWidth().clickable { onOpenStock(holding.symbol) }) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(holding.symbol, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)

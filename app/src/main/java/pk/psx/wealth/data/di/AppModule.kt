@@ -20,6 +20,8 @@ import pk.psx.wealth.data.repository.PortfolioRepository
 import pk.psx.wealth.data.repository.MarketRepository
 import pk.psx.wealth.data.repository.RoomPortfolioRepository
 import pk.psx.wealth.data.repository.RoomMarketRepository
+import pk.psx.wealth.data.repository.ResearchRepository
+import pk.psx.wealth.data.repository.RoomResearchRepository
 import pk.psx.wealth.data.repository.RoomStrategyRepository
 import pk.psx.wealth.data.repository.StrategyRepository
 import pk.psx.wealth.domain.MarketDataProvider
@@ -73,6 +75,7 @@ abstract class RepositoryModule {
     @Binds abstract fun portfolioRepository(implementation: RoomPortfolioRepository): PortfolioRepository
     @Binds abstract fun marketRepository(implementation: RoomMarketRepository): MarketRepository
     @Binds abstract fun strategyRepository(implementation: RoomStrategyRepository): StrategyRepository
+    @Binds abstract fun researchRepository(implementation: RoomResearchRepository): ResearchRepository
 }
 
 @Module
