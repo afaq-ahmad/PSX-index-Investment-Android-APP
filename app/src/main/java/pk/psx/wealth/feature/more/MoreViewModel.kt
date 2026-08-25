@@ -8,7 +8,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import pk.psx.wealth.data.backup.BackupKind
 import pk.psx.wealth.data.backup.BackupService
 import pk.psx.wealth.data.backup.RestorePreview
@@ -81,14 +83,14 @@ class MoreViewModel @Inject constructor(
     fun prepareReport(type: ReportType) = viewModelScope.launch {
         runBusy {
             val portfolioId = requireNotNull(session.selectedPortfolioId.value) { "Create or select a portfolio first" }
-            val report = reports.create(type, portfolioId)
+            val report = withContext(Dispatchers.IO) { reports.create(type, portfolioId) }
             operation.value = MoreOperation(export = ExportPayload(System.nanoTime(), report.fileName, "text/csv", report.bytes))
         }
     }
 
     fun prepareBackup(kind: BackupKind) = viewModelScope.launch {
         runBusy {
-            val backup = backups.create(kind)
+            val backup = withContext(Dispatchers.IO) { backups.create(kind) }
             operation.value = MoreOperation(export = ExportPayload(System.nanoTime(), backup.fileName, "application/zip", backup.bytes))
         }
     }
@@ -97,7 +99,7 @@ class MoreViewModel @Inject constructor(
 
     fun previewRestore(bytes: ByteArray) = viewModelScope.launch {
         runBusy {
-            val preview = backups.preview(bytes)
+            val preview = withContext(Dispatchers.IO) { backups.preview(bytes) }
             pendingRestore = bytes.copyOf()
             operation.value = MoreOperation(restorePreview = preview)
         }
@@ -108,7 +110,7 @@ class MoreViewModel @Inject constructor(
     fun confirmRestore() = viewModelScope.launch {
         runBusy {
             val bytes = requireNotNull(pendingRestore) { "Choose a backup again" }
-            backups.restore(bytes)
+            withContext(Dispatchers.IO) { backups.restore(bytes) }
             pendingRestore = null
             loadCounts()
             operation.value = MoreOperation(message = "Backup restored. Cached data may be refreshed when you choose.")
@@ -140,13 +142,13 @@ class MoreViewModel @Inject constructor(
 
     private suspend fun loadCounts() {
         counts.value = DataCounts(
-            portfolios = backupDao.portfolios().size,
-            transactions = backupDao.transactions().size,
-            securities = backupDao.securities().size,
-            quotes = backupDao.quotes().size,
-            prices = backupDao.prices().size,
-            indexSnapshots = backupDao.indexSnapshots().size,
-            fundamentals = backupDao.fundamentals().size,
+            portfolios = backupDao.portfolioCount(),
+            transactions = backupDao.transactionCount(),
+            securities = backupDao.securityCount(),
+            quotes = backupDao.quoteCount(),
+            prices = backupDao.priceCount(),
+            indexSnapshots = backupDao.indexSnapshotCount(),
+            fundamentals = backupDao.fundamentalCount(),
         )
     }
 

@@ -184,6 +184,13 @@ interface DiagnosticsDao {
 
 @Dao
 interface BackupDao {
+    @Query("SELECT COUNT(*) FROM portfolios") suspend fun portfolioCount(): Int
+    @Query("SELECT COUNT(*) FROM transactions") suspend fun transactionCount(): Int
+    @Query("SELECT COUNT(*) FROM securities") suspend fun securityCount(): Int
+    @Query("SELECT COUNT(*) FROM quotes") suspend fun quoteCount(): Int
+    @Query("SELECT COUNT(*) FROM daily_prices") suspend fun priceCount(): Int
+    @Query("SELECT COUNT(*) FROM index_snapshot_headers") suspend fun indexSnapshotCount(): Int
+    @Query("SELECT COUNT(*) FROM fundamental_metrics") suspend fun fundamentalCount(): Int
     @Query("SELECT * FROM portfolios ORDER BY id") suspend fun portfolios(): List<PortfolioEntity>
     @Query("SELECT * FROM securities ORDER BY id") suspend fun securities(): List<SecurityEntity>
     @Query("SELECT * FROM transactions ORDER BY id") suspend fun transactions(): List<TransactionEntity>
