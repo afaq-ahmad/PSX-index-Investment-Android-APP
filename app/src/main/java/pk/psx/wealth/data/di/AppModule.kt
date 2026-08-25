@@ -11,14 +11,20 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.Multibinds
+import okhttp3.Cache
+import okhttp3.OkHttpClient
 import pk.psx.wealth.data.local.MIGRATION_1_2
 import pk.psx.wealth.data.local.PsxDatabase
 import pk.psx.wealth.data.local.seedReferenceData
 import pk.psx.wealth.data.repository.PortfolioRepository
+import pk.psx.wealth.data.repository.MarketRepository
 import pk.psx.wealth.data.repository.RoomPortfolioRepository
+import pk.psx.wealth.data.repository.RoomMarketRepository
 import pk.psx.wealth.domain.MarketDataProvider
 import pk.psx.wealth.domain.PortfolioCalculator
 import pk.psx.wealth.domain.RebalanceEngine
+import java.time.Clock
+import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
 @Module
@@ -47,12 +53,21 @@ object AppModule {
     @Provides fun diagnosticsDao(db: PsxDatabase) = db.diagnosticsDao()
     @Provides fun portfolioCalculator() = PortfolioCalculator()
     @Provides fun rebalanceEngine() = RebalanceEngine()
+    @Provides @Singleton fun clock(): Clock = Clock.systemDefaultZone()
+    @Provides @Singleton fun httpClient(@ApplicationContext context: Context): OkHttpClient =
+        OkHttpClient.Builder()
+            .cache(Cache(context.cacheDir.resolve("market-http"), 8L * 1024 * 1024))
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(20, TimeUnit.SECONDS)
+            .callTimeout(30, TimeUnit.SECONDS)
+            .build()
 }
 
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class RepositoryModule {
     @Binds abstract fun portfolioRepository(implementation: RoomPortfolioRepository): PortfolioRepository
+    @Binds abstract fun marketRepository(implementation: RoomMarketRepository): MarketRepository
 }
 
 @Module
